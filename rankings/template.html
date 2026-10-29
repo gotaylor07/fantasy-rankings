@@ -1999,6 +1999,10 @@ function renderAnalyzer(ctx, box) {
   });
   label.appendChild(sel);
   top.appendChild(label);
+  const clear = el('button', 'btn ghost', 'Clear selections');
+  clear.type = 'button';
+  clear.addEventListener('click', () => { st.give.clear(); st.get.clear(); renderAnalyzer(ctx, box); });
+  top.appendChild(clear);
   box.appendChild(top);
 
   const grid = el('div', 'trade-grid');
@@ -2026,6 +2030,7 @@ function renderAnalyzer(ctx, box) {
 
   function drawResult() {
     result.replaceChildren();
+    clear.disabled = !st.give.size && !st.get.size;
     const give = me.players.filter(p => st.give.has(plKey(p)));
     const get = them.players.filter(p => st.get.has(plKey(p)));
     if (!give.length && !get.length) { result.appendChild(el('p', 'empty', 'Tick players on either side to see how the trade changes both teams.')); return; }
