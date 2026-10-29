@@ -205,7 +205,8 @@ button.g-slot:hover,button.g-slot:focus-visible{border-color:var(--accent);backg
 .d-roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px}
 .d-roster-row{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:10px;background:var(--card);border:1px solid var(--line)}
 .d-roster-row .desc{margin-left:auto}
-.d-roster-pos{font-weight:700;font-size:12px;color:var(--muted);width:34px}
+.d-roster-pos{font-weight:700;font-size:12px;color:var(--muted);width:44px}
+.d-roster-row.open{border-style:dashed;background:none}
 @keyframes g-fall{to{transform:translateY(105vh) rotate(720deg);opacity:.9}}
 @media (prefers-reduced-motion: reduce){.g-enter,.g-slot.filled{animation:none}}
 .mu-mini{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -2681,15 +2682,18 @@ function renderGames() {
 
 // ---------------------------------------------------------------- games: Draft
 //
-// Fill a standard roster one pick at a time from five players per round. Positions close
-// once their limit is reached. The final score compares your best starting lineup with the
-// best and worst lineups you could have built from the same offers (one pick per round),
-// so every draft is graded on the choices it actually gave you.
+// Fill a standard starting lineup one pick a round from five players per round. Each pick
+// goes into the most specific open slot (a RB fills a RB spot before the FLEX), and a
+// position stops appearing once no open slot can take it. The final score compares your
+// lineup with the best and worst lineups you could have built from the same offers
+// (one player per round), so every draft is graded on the choices it actually gave you.
 
 const DRAFT = NBA
-  ? {caps: {PG: 3, SG: 3, SF: 2, PF: 3, C: 2}, starters: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'UTIL', 'UTIL'], top: 30, pool: 200}
-  : {caps: {QB: 2, RB: 5, WR: 5, TE: 2, K: 1, DEF: 1}, starters: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'K', 'DEF'], top: 30, pool: 200};
-DRAFT.rounds = Object.values(DRAFT.caps).reduce((a, b) => a + b, 0);
+  ? {slots: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'UTIL', 'UTIL'], top: 30, pool: 200}
+  : {slots: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'K', 'DEF'], top: 30, pool: 200};
+DRAFT.rounds = DRAFT.slots.length;
+// Fill order: dedicated slots before flexible ones.
+DRAFT.fill = DRAFT.slots.map((s, i) => i).sort((a, b) => SLOT_ELIG[DRAFT.slots[a]].length - SLOT_ELIG[DRAFT.slots[b]].length || a - b);
 // Football has no overall board, so players are compared by points above a typical starter
 // at their position (the Nth best in a 12-team league).
 const REPLACEMENT = {QB: 12, RB: 30, WR: 30, TE: 12, K: 12, DEF: 12};
@@ -2704,8 +2708,7 @@ function draftValue(sid) {
     const weeks = Math.max(1, Object.values(CAL.weeks).filter(([, end]) => end >= TODAY).length);
     return nbaPoints(p.pg, D.scoring) * left / weeks;
   }
-  const ws = ROS_WEEKS;
-  return ws.reduce((s, w) => s + (p.proj[String(w)] || 0), 0) / ws.length;
+  return ROS_WEEKS.reduce((s, w) => s + (p.proj[String(w)] || 0), 0) / ROS_WEEKS.length;
 }
 
 let draftOrderCache = null;
@@ -2716,7 +2719,7 @@ function draftOrder() {
     draftOrderCache = (((D.types.ros || {}).rankings || {}).ALL || []).filter(r => r.sid && P[r.sid] && P[r.sid].pg).map(r => r.sid);
   } else {
     const byPos = {};
-    Object.entries(P).forEach(([sid, p]) => { if (p.t && DRAFT.caps[p.p]) (byPos[p.p] = byPos[p.p] || []).push([sid, draftValue(sid)]); });
+    Object.entries(P).forEach(([sid, p]) => { if (p.t && REPLACEMENT[p.p]) (byPos[p.p] = byPos[p.p] || []).push([sid, draftValue(sid)]); });
     const vor = [];
     Object.entries(byPos).forEach(([pos, list]) => {
       list.sort((a, b) => b[1] - a[1]);
@@ -2729,40 +2732,40 @@ function draftOrder() {
 }
 
 const draftPl = sid => ({sid, name: P[sid].n, pos: P[sid].p, el: P[sid].el, team: P[sid].t, inj: P[sid].i});
-/** Which roster position a player would fill: the first of his positions with room. */
-function draftSpot(sid, counts) {
-  const p = P[sid];
-  return (NBA ? (p.el || [p.p]) : [p.p]).find(x => DRAFT.caps[x] && (counts[x] || 0) < DRAFT.caps[x]) || null;
+/** The slot a player would fill: the most specific open slot he's eligible for, or -1. */
+function draftSpot(sid, filled = draft.filled) {
+  const pl = draftPl(sid);
+  return DRAFT.fill.find(i => !filled[i] && eligible(pl, DRAFT.slots[i])) ?? -1;
 }
+const slotName = i => SLOT_LABEL[DRAFT.slots[i]] || DRAFT.slots[i];
 
 function draftOffer() {
   const order = draftOrder();
-  const taken = new Set(draft.picks.map(x => x.sid));
+  const taken = new Set(draft.filled.filter(Boolean));
   const rank = new Map(order.map((sid, i) => [sid, i]));
-  const open = order.filter(sid => !taken.has(sid) && draftSpot(sid, draft.counts));
+  const open = order.filter(sid => !taken.has(sid) && draftSpot(sid) >= 0);
   if (!open.length) return [];
   const offer = [];
   const usedPos = new Set();
-  const take = sid => { offer.push(sid); usedPos.add(draftSpot(sid, draft.counts)); };
-  // Always one top-30 player (or the best left at an open position, late in the draft).
+  const take = sid => { offer.push(sid); usedPos.add(P[sid].p); };
+  // Always one top-30 player (or the best left who fits, late in the draft).
   const top = open.filter(sid => rank.get(sid) < DRAFT.top);
   take(top.length ? top[Math.floor(Math.random() * top.length)] : open[0]);
   // The rest from a window that deepens each round, one per position while positions last.
-  const depth = Math.min(DRAFT.pool, 40 + 12 * draft.round);
+  const depth = Math.min(DRAFT.pool, 40 + 15 * draft.round);
   for (let pass = 0; pass < 2 && offer.length < 5; pass++) {
-    const cands = open.filter(sid => !offer.includes(sid) && rank.get(sid) < depth && (pass || !usedPos.has(draftSpot(sid, draft.counts))));
+    const cands = open.filter(sid => !offer.includes(sid) && rank.get(sid) < depth);
     while (offer.length < 5 && cands.length) {
       const sid = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
-      if (pass || !usedPos.has(draftSpot(sid, draft.counts))) take(sid);
+      if (pass || !usedPos.has(P[sid].p)) take(sid);
     }
   }
-  // Very late, fall back to anyone left.
   for (const sid of open) { if (offer.length >= 5) break; if (!offer.includes(sid)) take(sid); }
   return offer.sort(() => Math.random() - 0.5);
 }
 
 function startDraft() {
-  draft = {stage: 'play', round: 1, picks: [], counts: {}, offers: []};
+  draft = {stage: 'play', round: 1, filled: new Array(DRAFT.rounds).fill(null), pickRound: {}, offers: []};
   draft.offer = draftOffer();
   draft.offers.push(draft.offer);
   renderGames();
@@ -2770,10 +2773,11 @@ function startDraft() {
 
 function draftPick(sid) {
   if (draft.stage !== 'play' || !draft.offer.includes(sid)) return;
-  const spot = draftSpot(sid, draft.counts);
-  draft.counts[spot] = (draft.counts[spot] || 0) + 1;
-  draft.picks.push({sid, spot, round: draft.round});
-  if (draft.picks.length >= DRAFT.rounds) { finishDraft(); return; }
+  const i = draftSpot(sid);
+  if (i < 0) return;
+  draft.filled[i] = sid;
+  draft.pickRound[sid] = draft.round;
+  if (draft.filled.every(Boolean)) { finishDraft(); return; }
   draft.round++;
   draft.offer = draftOffer();
   if (!draft.offer.length) { finishDraft(); return; }
@@ -2781,16 +2785,15 @@ function draftPick(sid) {
   renderGames();
 }
 
-/** Best (or worst) starting lineup buildable with at most one player per round of offers. */
+/** Best (or worst) full lineup buildable with exactly one player from each round's offer. */
 function lineupFromOffers(offers, best) {
-  const slots = DRAFT.starters;
+  const slots = DRAFT.slots;
   const full = (1 << slots.length) - 1;
   let dp = new Map([[0, 0]]);
   offers.forEach(offer => {
-    const next = new Map(dp);   // skipping a round (that pick goes to the bench)
+    const next = new Map();
     dp.forEach((v, mask) => offer.forEach(sid => {
-      const pl = draftPl(sid);
-      const val = draftValue(sid);
+      const pl = draftPl(sid), val = draftValue(sid);
       slots.forEach((slot, i) => {
         if (mask & (1 << i) || !eligible(pl, slot)) return;
         const m = mask | (1 << i), nv = v + val;
@@ -2799,21 +2802,18 @@ function lineupFromOffers(offers, best) {
     }));
     dp = next;
   });
-  if (dp.has(full)) return dp.get(full);
-  return best ? Math.max(...dp.values()) : 0;
+  return dp.has(full) ? dp.get(full) : null;
 }
 
 function finishDraft() {
-  const team = {players: draft.picks.map(x => draftPl(x.sid))};
-  const lineup = bestLineup({slots: DRAFT.starters}, team, null, false, pl => draftValue(pl.sid));
-  const mine = lineup.total;
-  const best = lineupFromOffers(draft.offers, true);
-  const worst = lineupFromOffers(draft.offers, false);
+  const mine = draft.filled.reduce((s, sid) => s + (sid ? draftValue(sid) : 0), 0);
+  const best = lineupFromOffers(draft.offers, true) ?? mine;
+  const worst = lineupFromOffers(draft.offers, false) ?? 0;
   let score = best > worst ? 100 * (mine - worst) / (best - worst) : 100;
   score = mine >= best - 1e-6 ? 100 : Math.max(0, Math.min(99, Math.round(score)));
-  draft = {...draft, stage: 'done', lineup, mine, best, worst, score};
+  draft = {...draft, stage: 'done', mine, best, worst, score};
   const st = gameStore.get();
-  const k = `${D.sport || 'football'}:draft`;
+  const k = `${D.sport || 'football'}:draft-lineup`;
   draft.prevBest = st[k];
   st[k] = Math.max(st[k] || 0, score);
   gameStore.set(st);
@@ -2822,44 +2822,43 @@ function finishDraft() {
 
 function draftNeeds() {
   const bar = el('div', 'd-needs');
-  Object.entries(DRAFT.caps).forEach(([pos, cap]) => {
-    const n = draft.counts[pos] || 0;
-    const chip = el('span', 'd-need' + (n >= cap ? ' full' : ''));
-    chip.appendChild(el('b', '', posLabel(pos)));
-    chip.appendChild(document.createTextNode(` ${n}/${cap}`));
+  DRAFT.slots.forEach((slot, i) => {
+    const sid = draft.filled[i];
+    const chip = el('span', 'd-need' + (sid ? ' full' : ''));
+    chip.appendChild(el('b', '', slotName(i)));
+    if (sid) chip.appendChild(document.createTextNode(' ' + P[sid].n.split(' ').slice(-1)[0]));
     bar.appendChild(chip);
   });
   return bar;
 }
 
-function draftRosterList() {
+function draftLineupList() {
   const box = el('div', 'd-roster');
-  Object.keys(DRAFT.caps).forEach(pos => {
-    draft.picks.filter(x => x.spot === pos).forEach(x => {
-      const row = el('div', 'd-roster-row');
-      row.appendChild(el('span', 'd-roster-pos', posLabel(pos)));
-      row.appendChild(nameTag(draftPl(x.sid), {pos: false}));
-      row.appendChild(el('span', 'desc', `Rd ${x.round}`));
-      box.appendChild(row);
-    });
+  DRAFT.slots.forEach((slot, i) => {
+    const sid = draft.filled[i];
+    const row = el('div', 'd-roster-row' + (sid ? '' : ' open'));
+    row.appendChild(el('span', 'd-roster-pos', slotName(i)));
+    if (sid) { row.appendChild(nameTag(draftPl(sid), {pos: false})); row.appendChild(el('span', 'desc', `Rd ${draft.pickRound[sid]}`)); }
+    else row.appendChild(el('span', 'muted', 'Open'));
+    box.appendChild(row);
   });
-  if (!draft.picks.length) box.appendChild(el('p', 'empty', 'Your picks show up here.'));
   return box;
 }
 
 function renderDraft(box) {
+  const lineupText = DRAFT.slots.map((s, i) => slotName(i)).join(', ');
   if (draft.stage === 'setup') {
     const card = el('div', 'card g-setup');
-    card.appendChild(el('h2', '', `Build a ${DRAFT.rounds}-player roster`));
-    card.appendChild(el('p', 'desc', `Each round you get five players, from different positions where possible and always with at least one top-${DRAFT.top} player. ` +
-      `Pick one. Once a position is full (${Object.entries(DRAFT.caps).map(([p, c]) => `${c} ${posLabel(p)}`).join(', ')}), it stops showing up.`));
-    card.appendChild(el('p', 'desc', `Your score compares your best starting lineup (${DRAFT.starters.map(s => SLOT_LABEL[s] || s).join(', ')}) with the best and worst you could have built from the same offers: 100 is the best possible team.`));
+    card.appendChild(el('h2', '', `Draft a starting lineup in ${DRAFT.rounds} rounds`));
+    card.appendChild(el('p', 'desc', `Fill ${lineupText}. Each round you get five players, from different positions where possible and always with at least one top-${DRAFT.top} player. ` +
+      'Your pick goes into the most specific open spot, and once no open spot fits a position, it stops showing up.'));
+    card.appendChild(el('p', 'desc', 'Your score compares your lineup with the best and worst you could have built from the same offers: 100 is the best possible team.'));
     const row = el('div', 'g-start-row');
     const go = el('button', 'btn g-go', 'Start draft'); go.type = 'button';
     go.disabled = draftOrder().length < 60;
     go.addEventListener('click', startDraft);
     row.appendChild(go);
-    const best = gameStore.get()[`${D.sport || 'football'}:draft`];
+    const best = gameStore.get()[`${D.sport || 'football'}:draft-lineup`];
     if (best != null) row.appendChild(el('span', 'desc', `Your best: ${best}`));
     card.appendChild(row);
     box.appendChild(card);
@@ -2877,15 +2876,15 @@ function renderDraft(box) {
       const b = el('button', 'd-pick g-enter'); b.type = 'button';
       b.style.animationDelay = `${i * 60}ms`;
       const card = gameCard({sid}, true);
-      card.appendChild(el('div', 'd-for', `Fills ${posLabel(draftSpot(sid, draft.counts))}`));
+      card.appendChild(el('div', 'd-for', `Fills ${slotName(draftSpot(sid))}`));
       b.appendChild(card);
       b.addEventListener('click', () => draftPick(sid));
       grid.appendChild(b);
     });
     box.appendChild(grid);
     const rw = el('div', 'section');
-    rw.appendChild(el('h3', '', 'Your roster'));
-    rw.appendChild(draftRosterList());
+    rw.appendChild(el('h3', '', 'Your lineup'));
+    rw.appendChild(draftLineupList());
     box.appendChild(rw);
     return;
   }
@@ -2897,14 +2896,14 @@ function renderDraft(box) {
   left.appendChild(ring);
   const verdict = draft.score === 100 ? 'Perfect draft!' : draft.score >= 90 ? 'League winner' : draft.score >= 75 ? 'Playoff team' : draft.score >= 50 ? 'Middle of the pack' : 'Rebuilding year';
   left.appendChild(el('div', 'g-verdict', verdict));
-  left.appendChild(el('p', 'desc', `Your starters project ${fmt(draft.mine)} points a week. The best lineup your offers allowed: ${fmt(draft.best)}; the worst: ${fmt(draft.worst)}.` +
+  left.appendChild(el('p', 'desc', `Your lineup projects ${fmt(draft.mine)} points a week. The best lineup your offers allowed: ${fmt(draft.best)}; the worst: ${fmt(draft.worst)}.` +
     (draft.prevBest != null && draft.score > draft.prevBest ? ` New best (was ${draft.prevBest}).` : '')));
   const btns = el('div', 'g-start-row');
   const again = el('button', 'btn g-go', 'Draft again'); again.type = 'button'; again.addEventListener('click', startDraft);
   const share = el('button', 'btn ghost', 'Copy result'); share.type = 'button';
   share.addEventListener('click', () => {
     const text = `Draft (${NBA ? 'basketball' : 'football'}): power score ${draft.score}/100\n` +
-      draft.lineup.picks.map((p, i) => p ? `${SLOT_LABEL[DRAFT.starters[i]] || DRAFT.starters[i]}: ${p.pl.name}` : null).filter(Boolean).join('\n');
+      DRAFT.slots.map((s, i) => `${slotName(i)}: ${P[draft.filled[i]].n}`).join('\n');
     (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => { share.textContent = 'Copied!'; }, () => { share.textContent = 'Couldn\'t copy'; });
   });
   btns.append(again, share);
@@ -2913,24 +2912,21 @@ function renderDraft(box) {
   stage.appendChild(left);
 
   const right = el('div', 'g-right');
-  right.appendChild(el('div', 'g-ladder-head', 'Your starting lineup'));
-  const starters = new Set(draft.lineup.picks.filter(Boolean).map(p => p.pl.sid));
-  const rows = DRAFT.starters.map((slot, i) => {
-    const p = draft.lineup.picks[i];
+  right.appendChild(el('div', 'g-ladder-head', 'Your lineup'));
+  const rows = DRAFT.slots.map((slot, i) => {
+    const sid = draft.filled[i];
     const tr = el('tr');
-    tr.appendChild(td(SLOT_LABEL[slot] || slot, 'l muted'));
-    const c = td('', 'l'); if (p) c.appendChild(nameTag(p.pl)); else c.appendChild(el('span', 'muted', 'Empty'));
-    tr.appendChild(c);
-    tr.appendChild(td(p ? fmt(p.pts) : '–', 'avg'));
+    tr.appendChild(td(slotName(i), 'l muted'));
+    const c = td('', 'l'); c.appendChild(nameTag(draftPl(sid))); tr.appendChild(c);
+    tr.appendChild(td(`Rd ${draft.pickRound[sid]}`, 'muted'));
+    tr.appendChild(td(fmt(draftValue(sid)), 'avg'));
     return tr;
   });
-  const foot = el('tr'); foot.appendChild(td('Total', 'l')); foot.appendChild(td('')); foot.appendChild(td(fmt(draft.mine)));
-  right.appendChild(table([['Slot', 'l'], ['Player', 'l'], 'Pts/wk'], rows, foot));
-  const bench = draft.picks.filter(x => !starters.has(x.sid));
-  if (bench.length) right.appendChild(el('p', 'note', 'Bench: ' + bench.map(x => `${P[x.sid].n} (${fmt(draftValue(x.sid))})`).join(', ')));
+  const foot = el('tr'); foot.appendChild(td('Total', 'l')); foot.appendChild(td('')); foot.appendChild(td('')); foot.appendChild(td(fmt(draft.mine)));
+  right.appendChild(table([['Slot', 'l'], ['Player', 'l'], 'Pick', 'Pts/wk'], rows, foot));
   stage.appendChild(right);
   box.appendChild(stage);
-  box.appendChild(el('p', 'note', `Points per week are rest-of-season projections (${NBA ? 'ESPN standard points, per-game projection × games left' : 'full PPR'}). Only starters count toward the score.`));
+  box.appendChild(el('p', 'note', `Points per week are rest-of-season projections (${NBA ? 'ESPN standard points, per-game projection × games left' : 'full PPR'}).`));
 }
 
 function confetti() {

@@ -100,9 +100,9 @@ The **Games** tab on both pages. Pick a position and a board (this week, rest of
 
 ## Games: Draft
 
-Fill a standard ESPN-size roster one pick a round: 16 in football (2 QB, 5 RB, 5 WR, 2 TE, 1 K, 1 D/ST; starters QB, 2 RB, 2 WR, TE, FLEX, K, D/ST) and 13 in basketball (3 PG, 3 SG, 2 SF, 3 PF, 2 C; starters PG, SG, SF, PF, C, G, F, 3 UTIL). Each round offers five players, from different positions where possible and always including a top-30 player overall, drawn from a pool that deepens each round. A position stops appearing once it's full. Overall order is the basketball rest-of-season overall board; in football, where there's no overall board, players are ordered by projected points above a typical starter at their position.
+Draft a standard starting lineup, one pick a round: 9 in football (QB, 2 RB, 2 WR, TE, FLEX, K, D/ST) and 10 in basketball (PG, SG, SF, PF, C, G, F, 3 UTIL, ESPN's default). Each round offers five players, from different positions where possible and always including a top-30 player overall, drawn from a pool that deepens each round. A pick goes into the most specific open spot (a RB fills a RB spot before the FLEX), and a position stops appearing once no open spot can take it. Overall order is the basketball rest-of-season overall board; in football, where there's no overall board, players are ordered by projected points above a typical starter at their position.
 
-The power score compares your best starting lineup's projected points per week with the best and worst lineups you could have built from the offers you actually saw (one player per round): 100 is the best possible team from those choices, 0 the worst. Bench players don't count toward it.
+The power score compares your lineup's projected points per week with the best and worst lineups you could have built from the offers you actually saw (one player per round): 100 is the best possible team from those choices, 0 the worst.
 
 ## Hosted on GitHub Pages
 
