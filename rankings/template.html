@@ -209,6 +209,22 @@ button.g-slot:hover,button.g-slot:focus-visible{border-color:var(--accent);backg
 .d-roster-row .desc{margin-left:auto}
 .d-roster-pos{font-weight:700;font-size:12px;color:var(--muted);width:44px}
 .d-roster-row.open{border-style:dashed;background:none}
+.who-mystery{font-size:40px !important;color:var(--muted)}
+.who-form{display:flex;flex-direction:column;gap:14px;margin:0}
+.combo{position:relative;display:flex;flex-direction:column;gap:6px}
+.combo-label{font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.combo input,.combo select{font-size:16px;padding:11px 14px;border-radius:12px}
+.combo input:disabled,.combo select:disabled{opacity:.75}
+.combo-list{position:absolute;top:100%;left:0;right:0;z-index:20;margin:4px 0 0;padding:4px;list-style:none;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 34px rgba(0,0,0,.25);max-height:280px;overflow:auto}
+.combo-list li{padding:9px 12px;border-radius:8px;cursor:pointer}
+.combo-list li.on,.combo-list li:hover{background:color-mix(in srgb,var(--accent) 14%,var(--card))}
+.combo-list li b{color:var(--accent)}
+.who-feedback{display:flex;flex-direction:column;gap:6px}
+.who-fb{padding:9px 12px;border-radius:10px;font-size:14px}
+.who-fb.ok{background:color-mix(in srgb,var(--good) 12%,var(--card));border:1px solid color-mix(in srgb,var(--good) 45%,transparent)}
+.who-fb.no{background:color-mix(in srgb,var(--bad) 10%,var(--card));border:1px solid color-mix(in srgb,var(--bad) 40%,transparent)}
+.who-fb.ok b{color:var(--good)}
+.who-fb.no b{color:var(--bad)}
 @keyframes g-fall{to{transform:translateY(105vh) rotate(720deg);opacity:.9}}
 @media (prefers-reduced-motion: reduce){.g-enter,.g-slot.filled{animation:none}}
 .mu-mini{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -2560,15 +2576,17 @@ function renderGames() {
   const box = document.getElementById('gamesBody');
   box.replaceChildren();
   const picker = el('div', 'tabs');
-  tabs(picker, [['blind', 'Blind Rank'], ['draft', 'Draft']], gameMode, v => { gameMode = v; renderGames(); });
+  tabs(picker, [['blind', 'Blind Rank'], ['draft', 'Draft'], ['who', "Who's That?"]], gameMode, v => { gameMode = v; renderGames(); });
   box.appendChild(picker);
   const hero = el('div', 'g-hero');
-  hero.appendChild(el('div', 'g-title', gameMode === 'draft' ? 'Draft' : 'Blind Rank'));
-  hero.appendChild(el('p', 'desc', gameMode === 'draft'
-    ? 'Five players a round. Take one, fill your roster, and see how your team stacks up against the best you could have built.'
-    : 'Five players, one at a time. Slot each into your 1–5 before you see the next. Once a player is placed, he stays.'));
+  hero.appendChild(el('div', 'g-title', {draft: 'Draft', who: "Who's That?"}[gameMode] || 'Blind Rank'));
+  hero.appendChild(el('p', 'desc', {
+    draft: 'Five players a round. Take one, fill your roster, and see how your team stacks up against the best you could have built.',
+    who: 'A face, a position and a team. Can you name him, his college and the decade he was drafted?',
+  }[gameMode] || 'Five players, one at a time. Slot each into your 1–5 before you see the next. Once a player is placed, he stays.'));
   box.appendChild(hero);
   if (gameMode === 'draft') { renderDraft(box); return; }
+  if (gameMode === 'who') { renderWho(box); return; }
 
   if (game.stage === 'setup') {
     const card = el('div', 'card g-setup');
@@ -2955,6 +2973,246 @@ function renderDraft(box) {
   stage.appendChild(right);
   box.appendChild(stage);
   box.appendChild(el('p', 'note', `Points per week are rest-of-season projections (${NBA ? 'ESPN standard points, per-game projection × games left' : 'full PPR'}).`));
+}
+
+// ---------------------------------------------------------------- games: Who's That?
+//
+// Five players, one at a time: face, position and team are shown; name, college and decade
+// drafted are the questions. Name and college boxes suggest matches as you type. The decade
+// comes from the player's rookie season (Sleeper's years of experience), which is the draft
+// year for drafted players and the year an undrafted player entered the league.
+
+const WHO_ROUNDS = 5;
+let who = {stage: 'setup'};
+
+const fold = s => String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[.'’`]/g, '').replace(/\s+/g, ' ').trim();
+const whoDecade = p => Math.floor((D.season - p.b.exp) / 10) * 10;
+const decadeName = d => `${d}s`;
+
+let whoPoolCache = null;
+/** Recognizable players with a college and experience on file. */
+function whoPool() {
+  if (whoPoolCache) return whoPoolCache;
+  const order = NBA ? (((D.types.ros || {}).rankings || {}).ALL || []).map(r => r.sid) : draftOrder();
+  const ok = sid => { const p = P[sid]; return p && p.t && p.b && p.b.col && typeof p.b.exp === 'number' && (NBA || ['QB', 'RB', 'WR', 'TE'].includes(p.p)); };
+  whoPoolCache = [...new Set(order)].filter(ok).slice(0, 150);
+  return whoPoolCache;
+}
+
+let whoOptionsCache = null;
+function whoOptions() {
+  if (whoOptionsCache) return whoOptionsCache;
+  const names = [...new Set(Object.values(P).filter(p => p.p !== 'DEF').map(p => p.n))].sort();
+  const colleges = [...new Set(Object.values(P).map(p => (p.b || {}).col).filter(Boolean))].sort();
+  const decades = [...new Set(whoPool().map(sid => whoDecade(P[sid])))].sort();
+  for (let d = Math.min(...decades) - 10; d < Math.min(...decades); d += 10) decades.unshift(d);   // one decade earlier as a distractor
+  whoOptionsCache = {names, colleges, decades};
+  return whoOptionsCache;
+}
+
+/** A text box that suggests matching options as you type (arrow keys + Enter, or click). */
+function combo(labelText, options, placeholder) {
+  const wrap = el('div', 'combo');
+  const id = 'c' + Math.random().toString(36).slice(2, 8);
+  const label = el('label', 'combo-label', labelText); label.htmlFor = id;
+  const input = el('input'); input.type = 'text'; input.id = id; input.placeholder = placeholder;
+  input.autocomplete = 'off'; input.spellcheck = false;
+  input.setAttribute('role', 'combobox'); input.setAttribute('aria-autocomplete', 'list'); input.setAttribute('aria-expanded', 'false');
+  const list = el('ul', 'combo-list'); list.id = id + '-list'; list.setAttribute('role', 'listbox'); list.hidden = true;
+  input.setAttribute('aria-controls', list.id);
+  const folded = options.map(o => [o, fold(o)]);
+  let matches = [], active = -1;
+  const close = () => { list.hidden = true; input.setAttribute('aria-expanded', 'false'); active = -1; };
+  const choose = o => { input.value = o; close(); input.dispatchEvent(new Event('change')); };
+  const paint = () => {
+    list.replaceChildren();
+    matches.forEach((o, i) => {
+      const li = el('li', i === active ? 'on' : ''); li.setAttribute('role', 'option'); li.id = `${id}-o${i}`;
+      li.setAttribute('aria-selected', String(i === active));
+      const q = fold(input.value), f = fold(o), at = f.indexOf(q);
+      // Bold the typed part when the display text lines up with the folded text.
+      if (q && at >= 0 && o.length === f.length) {
+        li.append(document.createTextNode(o.slice(0, at)), el('b', '', o.slice(at, at + q.length)), document.createTextNode(o.slice(at + q.length)));
+      } else li.textContent = o;
+      li.addEventListener('mousedown', e => { e.preventDefault(); choose(o); });
+      list.appendChild(li);
+    });
+    if (active >= 0) input.setAttribute('aria-activedescendant', `${id}-o${active}`); else input.removeAttribute('aria-activedescendant');
+    list.hidden = !matches.length;
+    input.setAttribute('aria-expanded', String(!!matches.length));
+  };
+  input.addEventListener('input', () => {
+    const q = fold(input.value);
+    if (!q) { matches = []; close(); return; }
+    // Matches at the start of a word first ("cle" → Clemson), then anywhere.
+    const starts = [], inside = [];
+    folded.forEach(([o, f]) => {
+      const at = f.indexOf(q);
+      if (at < 0) return;
+      (at === 0 || f[at - 1] === ' ' ? starts : inside).push(o);
+    });
+    matches = starts.concat(inside).slice(0, 8);
+    active = matches.length ? 0 : -1;
+    paint();
+  });
+  input.addEventListener('keydown', e => {
+    if (list.hidden) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = (active + 1) % matches.length; paint(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = (active - 1 + matches.length) % matches.length; paint(); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); choose(matches[active]); }
+    else if (e.key === 'Escape') { close(); }
+  });
+  input.addEventListener('blur', () => setTimeout(close, 120));
+  wrap.append(label, input, list);
+  return {root: wrap, input};
+}
+
+function startWho() {
+  const pool = whoPool().slice();
+  const picks = [];
+  while (picks.length < WHO_ROUNDS && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  who = {stage: 'play', picks, turn: 0, answers: [], revealed: false};
+  renderGames();
+}
+
+function whoCheck(sid, a) {
+  const p = P[sid];
+  return {
+    name: fold(a.name) === fold(p.n) || normName(a.name || '') === normName(p.n),
+    college: fold(a.college) === fold(p.b.col),
+    decade: +a.decade === whoDecade(p),
+  };
+}
+
+function whoScore() {
+  const right = who.answers.reduce((s, a, i) => { const c = whoCheck(who.picks[i], a); return s + c.name + c.college + c.decade; }, 0);
+  return {right, total: who.answers.length * 3, pct: Math.round(100 * right / (who.answers.length * 3))};
+}
+
+function renderWho(box) {
+  if (who.stage === 'setup') {
+    const card = el('div', 'card g-setup');
+    card.appendChild(el('h2', '', `Name ${WHO_ROUNDS} players`));
+    card.appendChild(el('p', 'desc', 'You see a face, position and team. Fill in his name, his college and the decade he was drafted. Name and college boxes suggest answers as you type.'));
+    card.appendChild(el('p', 'desc', `Players come from the top ${whoPool().length} on the rest-of-season board. Each player is worth 3 points: one per correct answer.`));
+    const row = el('div', 'g-start-row');
+    const go = el('button', 'btn g-go', 'Start'); go.type = 'button'; go.disabled = whoPool().length < WHO_ROUNDS;
+    go.addEventListener('click', startWho);
+    row.appendChild(go);
+    const best = gameStore.get()[`${D.sport || 'football'}:who`];
+    if (best != null) row.appendChild(el('span', 'desc', `Your best: ${best}%`));
+    card.appendChild(row);
+    box.appendChild(card);
+    return;
+  }
+  if (who.stage === 'done') {
+    const s = whoScore();
+    const stage = el('div', 'g-stage');
+    const left = el('div', 'g-left');
+    const ring = el('div', 'g-ring'); ring.style.setProperty('--pct', String(s.pct));
+    ring.appendChild(el('div', 'g-ring-num', s.pct + '%'));
+    left.appendChild(ring);
+    left.appendChild(el('div', 'g-verdict', s.pct === 100 ? 'Encyclopedia!' : s.pct >= 80 ? 'Scout material' : s.pct >= 60 ? 'True fan' : s.pct >= 40 ? 'Getting there' : 'Rookie'));
+    left.appendChild(el('p', 'desc', `${s.right} of ${s.total} answers right.` + (who.prevBest != null && s.pct > who.prevBest ? ` New best (was ${who.prevBest}%).` : '')));
+    const btns = el('div', 'g-start-row');
+    const again = el('button', 'btn g-go', 'Play again'); again.type = 'button'; again.addEventListener('click', startWho);
+    btns.appendChild(again);
+    left.appendChild(btns);
+    if (s.pct >= 90 && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) confetti();
+    stage.appendChild(left);
+    const right = el('div', 'g-right');
+    right.appendChild(el('div', 'g-ladder-head', 'Answer key'));
+    const mark = ok => el('span', ok ? 'good' : 'bad', ok ? '✓' : '✗');
+    const rows = who.picks.map((sid, i) => {
+      const p = P[sid], a = who.answers[i], c = whoCheck(sid, a);
+      const tr = el('tr');
+      const n = td('', 'l'); n.appendChild(nameTag({sid, name: p.n, pos: p.p, team: p.t}, {pos: false})); tr.appendChild(n);
+      [[c.name, a.name || '—'], [c.college, p.b.col], [c.decade, decadeName(whoDecade(p))]].forEach(([ok, text], j) => {
+        const cell = td('', 'l'); cell.appendChild(mark(ok)); cell.appendChild(document.createTextNode(' ' + (j === 0 ? (ok ? 'Got it' : `You: ${text}`) : text)));
+        tr.appendChild(cell);
+      });
+      return tr;
+    });
+    right.appendChild(table([['Player', 'l'], ['Name', 'l'], ['College', 'l'], ['Drafted', 'l']], rows));
+    stage.appendChild(right);
+    box.appendChild(stage);
+    box.appendChild(el('p', 'note', 'Decade drafted is the decade of the player\'s rookie season, which is his draft year for drafted players.'));
+    return;
+  }
+
+  // Playing
+  const sid = who.picks[who.turn], p = P[sid];
+  const stage = el('div', 'g-stage');
+  const left = el('div', 'g-left');
+  const dots = el('div', 'g-dots');
+  for (let i = 0; i < WHO_ROUNDS; i++) dots.appendChild(el('span', i < who.turn ? 'done' : i === who.turn ? 'now' : ''));
+  left.appendChild(dots);
+  left.appendChild(el('div', 'desc', `Player ${who.turn + 1} of ${WHO_ROUNDS}`));
+  const card = tint(el('div', 'g-card big g-enter'), p.t);
+  card.appendChild(playerPhoto(sid, p));
+  const meta = el('div', 'pl-meta');
+  const chip = teamChip(p.t); if (chip) meta.appendChild(chip);
+  meta.appendChild(el('span', 'desc', `${NBA ? (p.el || [p.p]).join('/') : posLabel(p.p)} · ${teamFullName(p.t)}`));
+  card.appendChild(meta);
+  if (who.revealed) card.appendChild(el('div', 'g-card-name', p.n));
+  else card.appendChild(el('div', 'g-card-name who-mystery', '?'));
+  left.appendChild(card);
+  stage.appendChild(left);
+
+  const right = el('div', 'g-right');
+  const opts = whoOptions();
+  const form = el('form', 'card who-form');
+  form.noValidate = true;
+  const name = combo('Name', opts.names, 'Start typing a name');
+  const college = combo('College', opts.colleges, 'Start typing a college');
+  const decWrap = el('div', 'combo');
+  const decId = 'dec' + who.turn;
+  const decLabel = el('label', 'combo-label', 'Decade drafted'); decLabel.htmlFor = decId;
+  const dec = el('select'); dec.id = decId;
+  dec.appendChild(Object.assign(el('option', '', 'Pick a decade'), {value: ''}));
+  opts.decades.forEach(d => { const o = el('option', '', decadeName(d)); o.value = String(d); dec.appendChild(o); });
+  decWrap.append(decLabel, dec);
+  form.append(name.root, college.root, decWrap);
+
+  const a = who.answers[who.turn];
+  if (who.revealed && a) {
+    name.input.value = a.name; college.input.value = a.college; dec.value = a.decade;
+    [name.input, college.input, dec].forEach(x => { x.disabled = true; });
+    const c = whoCheck(sid, a);
+    const fb = el('div', 'who-feedback');
+    [['Name', c.name, p.n], ['College', c.college, p.b.col], ['Drafted', c.decade, decadeName(whoDecade(p))]].forEach(([label, ok, truth]) => {
+      const row = el('div', 'who-fb ' + (ok ? 'ok' : 'no'));
+      row.appendChild(el('b', '', ok ? '✓' : '✗'));
+      row.appendChild(document.createTextNode(` ${label}: ${truth}`));
+      fb.appendChild(row);
+    });
+    form.appendChild(fb);
+    const next = el('button', 'btn g-go', who.turn + 1 < WHO_ROUNDS ? 'Next player' : 'See results'); next.type = 'submit';
+    form.appendChild(next);
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      if (who.turn + 1 < WHO_ROUNDS) { who.turn++; who.revealed = false; renderGames(); return; }
+      const s = whoScore();
+      const st = gameStore.get(); const k = `${D.sport || 'football'}:who`;
+      who.prevBest = st[k]; st[k] = Math.max(st[k] || 0, s.pct); gameStore.set(st);
+      who.stage = 'done'; renderGames();
+    });
+    setTimeout(() => next.focus(), 0);
+  } else {
+    const submit = el('button', 'btn g-go', 'Lock in'); submit.type = 'submit';
+    form.appendChild(submit);
+    form.appendChild(el('p', 'note', 'Not sure? Leave a box blank and lock in anyway.'));
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      who.answers[who.turn] = {name: name.input.value.trim(), college: college.input.value.trim(), decade: dec.value};
+      who.revealed = true;
+      renderGames();
+    });
+    setTimeout(() => name.input.focus(), 0);
+  }
+  right.appendChild(form);
+  stage.appendChild(right);
+  box.appendChild(stage);
 }
 
 function confetti() {

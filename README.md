@@ -104,6 +104,10 @@ Draft a standard starting lineup, one pick a round: 9 in football (QB, 2 RB, 2 W
 
 The power score compares your lineup's projected points per week with the best and worst lineups you could have built from the sets you picked from (one player per round): 100 is the best possible team from those choices, 0 the worst.
 
+## Games: Who's That?
+
+Five players, one at a time, drawn from the top 150 on the rest-of-season board (football skips kickers and defenses; players with no college on file are left out). You see the face, position and team, and answer three questions: name and college (both boxes suggest matches as you type: "cle" shows Clemson; arrow keys and Enter pick one) and decade drafted (a dropdown). Each player's answers are revealed before the next. The score is correct answers out of 15. "Decade drafted" is the decade of the player's rookie season, worked out from Sleeper's years of experience: the draft year for drafted players, the year an undrafted player entered the league.
+
 ## Hosted on GitHub Pages
 
 `.github/workflows/update-site.yml` rebuilds both pages every day at 11 am US Eastern on GitHub's servers and publishes them with GitHub Pages, so your computer doesn't need to be on. The football page is the site's front page; basketball is `basketball.html`.
