@@ -70,6 +70,16 @@ crontab -e
 
 Windows: Task Scheduler, weekly on Tuesday, action `python`, arguments `update.py`, start in the project folder. The computer has to be on (or wake) at that time.
 
+## Weekly slate
+
+The **Weekly slate** tab lists every game this week (football: the NFL week; basketball: Monday to Sunday, with a tab per day) with team records, TV, and the pre-game spread, over/under and moneylines. Lines are saved by `update.py` because ESPN removes them from its scoreboard once a game starts, so they reflect the last daily build.
+
+Scores update live from ESPN's public scoreboard: every 20 seconds while any game is in progress, every 5 minutes otherwise, and only while the page is open and visible. Live football games also show down and distance, possession, the last play and ESPN's live win chance. The banner on top cycles through big plays (football: touchdowns, turnovers and gains of 20+ yards, from each game's play-by-play) or player highs (basketball: each team's top performer).
+
+**Live fantasy matchups:** once the week's games start, **My league** refreshes your league's scores every minute (Sleeper and public ESPN leagues; private ESPN leagues and the demo league can't be refreshed from the page). The Matchup tab then shows the lineups each manager actually set, each starter's live points and game status, and win chances recomputed from the points already scored plus each starter's projection scaled by how much of his game is left.
+
+ESPN's servers turn away automated browsers (headless Chrome), so automated tests of the live features need a normal browser user agent; real visitors aren't affected.
+
 ## Connecting a league
 
 On the **My league** tab:

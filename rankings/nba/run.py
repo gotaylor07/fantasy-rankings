@@ -5,7 +5,7 @@ import json
 import sys
 from datetime import date, datetime
 
-from .. import leagues, site
+from .. import leagues, site, slate
 from . import build as nb
 from . import demo
 
@@ -67,9 +67,18 @@ def run(args, today: date) -> int:
         league_data = {"espn": leagues.fetch_configured(update.load_leagues_config(), season, "basketball",
                                                         nb.espn_season(season))}
 
+    slate_data = {}
+    if not args.demo:
+        try:
+            span = pd["calendar"]["weeks"].get(str(week))
+            slate_data = slate.build("basketball", season, dates=tuple(span))
+            print(f"  ok   slate    ESPN          {slate_data['events']} games, {len(slate_data['odds'])} with lines")
+        except Exception as exc:
+            print(f"  FAIL slate    ESPN {type(exc).__name__}: {exc}", file=sys.stderr)
     pd.pop("remaining", None)  # only needed for the boards; too big for the page
     data = {
         "sport": "basketball",
+        "slate": slate_data,
         "links": update.DEMO_LINKS if args.demo else update.LINKS,
         "generated": datetime.now().astimezone().isoformat(timespec="seconds"),
         "season": season,

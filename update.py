@@ -20,7 +20,7 @@ from pathlib import Path
 # Apple's bundled Python links LibreSSL; urllib3 warns about it on every run but works.
 warnings.filterwarnings("ignore", message="urllib3 v2 only supports OpenSSL")
 
-from rankings import demo, history, leagues, players, site
+from rankings import demo, history, leagues, players, site, slate
 from rankings.aggregate import aggregate, upcoming_week
 from rankings.sources import espn_injuries, espn_ownership, sleeper_players, source_registry
 
@@ -176,8 +176,17 @@ def run_football(args, today: date) -> int:
         player_history = history.build(season, player_data, meta or {})
         print(f"  ok   history  {len(player_history['seasons'])} players with past seasons")
 
+    slate_data = {}
+    if not args.demo:
+        try:
+            slate_data = slate.build("football", season, week)
+            print(f"  ok   slate    ESPN          {slate_data['events']} games, {len(slate_data['odds'])} with lines")
+        except Exception as exc:  # the page still loads scores live
+            print(f"  FAIL slate    ESPN {type(exc).__name__}: {exc}", file=sys.stderr)
+
     data = {
         "sport": "football",
+        "slate": slate_data,
         "links": DEMO_LINKS if args.demo else LINKS,
         "generated": datetime.now().astimezone().isoformat(timespec="seconds"),
         "season": season,
