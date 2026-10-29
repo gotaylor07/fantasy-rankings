@@ -1,0 +1,10 @@
+# Your ESPN login cookies: never commit.
+leagues.json
+
+# Built by update.py (the GitHub Action builds and publishes the site itself).
+site/
+data/
+
+__pycache__/
+*.pyc
+.DS_Store

@@ -1,0 +1,9 @@
+{
+  "espn": [
+    {
+      "league_id": "12345678",
+      "espn_s2": "paste the espn_s2 cookie value here",
+      "swid": "{PASTE-THE-SWID-COOKIE-INCLUDING-BRACES}"
+    }
+  ]
+}

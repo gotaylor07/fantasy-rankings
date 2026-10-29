@@ -1,0 +1,95 @@
+# Rebuilds the site every day at 11 am US Eastern and publishes it to GitHub Pages.
+#
+# GitHub schedules run on UTC and have no time zones, so there are two triggers,
+# 15:00 UTC (11 am during daylight time) and 16:00 UTC (11 am during standard
+# time), and the job skips whichever one isn't 11 am in New York that day.
+# Scheduled runs can start a few minutes late when GitHub is busy.
+name: Update site
+
+on:
+  schedule:
+    - cron: "0 15 * * *"
+    - cron: "0 16 * * *"
+  workflow_dispatch:  # the "Run workflow" button on the Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      run: ${{ steps.when.outputs.run }}
+    steps:
+      - name: Skip the trigger that isn't 11 am Eastern today
+        id: when
+        run: |
+          zone=$(TZ=America/New_York date +%Z)
+          run=yes
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            if [ "${{ github.event.schedule }}" = "0 15 * * *" ] && [ "$zone" != "EDT" ]; then run=no; fi
+            if [ "${{ github.event.schedule }}" = "0 16 * * *" ] && [ "$zone" != "EST" ]; then run=no; fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "New York is on $zone; running: $run"
+
+      - uses: actions/checkout@v4
+        if: steps.when.outputs.run == 'yes'
+
+      - uses: actions/setup-python@v5
+        if: steps.when.outputs.run == 'yes'
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        if: steps.when.outputs.run == 'yes'
+        run: pip install -r requirements.txt
+
+      # Past seasons and last run's boards (the fallback when a source fails) carry over between runs.
+      - name: Restore cached data
+        if: steps.when.outputs.run == 'yes'
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: data-${{ github.run_id }}
+          restore-keys: data-
+
+      # Optional: private ESPN leagues. Paste your leagues.json into a repository secret named LEAGUES_JSON.
+      - name: Private ESPN leagues
+        if: steps.when.outputs.run == 'yes'
+        env:
+          LEAGUES_JSON: ${{ secrets.LEAGUES_JSON }}
+        run: |
+          if [ -n "$LEAGUES_JSON" ]; then printf '%s' "$LEAGUES_JSON" > leagues.json; echo "Using leagues.json from secrets"; fi
+
+      - name: Build the site
+        if: steps.when.outputs.run == 'yes'
+        # update.py exits 1 if a board came back empty; publish what did build rather than nothing.
+        run: python update.py || echo "::warning::Some rankings were unavailable this run; see the log above."
+
+      - name: Leave out demo pages
+        if: steps.when.outputs.run == 'yes'
+        run: rm -f site/demo* && ls -la site
+
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.when.outputs.run == 'yes'
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.run == 'yes'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
