@@ -187,6 +187,25 @@ button.g-slot:hover,button.g-slot:focus-visible{border-color:var(--accent);backg
 .g-verdict{font-size:22px;font-weight:800}
 .confetti{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:50}
 .confetti i{position:absolute;top:-12px;width:9px;height:14px;border-radius:2px;animation:g-fall linear forwards}
+.d-head{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.d-prog{height:8px;border-radius:999px;background:var(--line);overflow:hidden}
+.d-prog span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .3s}
+.d-needs{display:flex;flex-wrap:wrap;gap:6px}
+.d-need{font-size:13px;padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line)}
+.d-need b{margin-right:2px}
+.d-need.full{opacity:.45;text-decoration:line-through}
+.d-offer{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:20px}
+.d-pick{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:center;border-radius:18px;transition:transform .15s}
+.d-pick:hover,.d-pick:focus-visible{transform:translateY(-4px);outline:none}
+.d-pick:hover .g-card,.d-pick:focus-visible .g-card{border-color:var(--accent);box-shadow:0 10px 28px color-mix(in srgb,var(--accent) 30%,transparent)}
+.d-pick .g-card.big{max-width:none;height:100%;padding:14px 10px}
+.d-pick .g-card.big .pl-photo{width:96px;height:96px}
+.d-pick .g-card.big .g-card-name{font-size:16px}
+.d-for{font-size:12px;font-weight:600;color:var(--accent);margin-top:auto}
+.d-roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px}
+.d-roster-row{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:10px;background:var(--card);border:1px solid var(--line)}
+.d-roster-row .desc{margin-left:auto}
+.d-roster-pos{font-weight:700;font-size:12px;color:var(--muted);width:34px}
 @keyframes g-fall{to{transform:translateY(105vh) rotate(720deg);opacity:.9}}
 @media (prefers-reduced-motion: reduce){.g-enter,.g-slot.filled{animation:none}}
 .mu-mini{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -208,7 +227,8 @@ tr.bench-row td{color:var(--muted)}
 td.cell-start{background:color-mix(in srgb,var(--accent) 12%,transparent);font-weight:600}
 td.cell-sit{color:var(--muted)}
 td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
-@media (max-width:640px){.g-stage{grid-template-columns:1fr}.g-left{position:static}.g-card.big .pl-photo{width:110px;height:110px}.mu-score{grid-template-columns:1fr}.mu-side.right{text-align:left}.mu-side.right .mu-name{justify-content:flex-start}.mu-pts{font-size:28px}.hero{flex-wrap:wrap}.sport{margin-left:0}.connect,.trade-grid{grid-template-columns:1fr}th,td{padding:8px 9px}.pl-photo{width:76px;height:76px}.dlg-head{flex-wrap:wrap}.nav{display:flex}.nav button{flex:1}h1{font-size:20px}}
+@media (max-width:900px){.d-offer{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:640px){.d-offer{grid-template-columns:repeat(2,minmax(0,1fr))}.g-stage{grid-template-columns:1fr}.g-left{position:static}.g-card.big .pl-photo{width:110px;height:110px}.mu-score{grid-template-columns:1fr}.mu-side.right{text-align:left}.mu-side.right .mu-name{justify-content:flex-start}.mu-pts{font-size:28px}.hero{flex-wrap:wrap}.sport{margin-left:0}.connect,.trade-grid{grid-template-columns:1fr}th,td{padding:8px 9px}.pl-photo{width:76px;height:76px}.dlg-head{flex-wrap:wrap}.nav{display:flex}.nav button{flex:1}h1{font-size:20px}}
 </style>
 </head>
 <body>
@@ -2448,6 +2468,7 @@ const gameStore = {
   set(v) { try { localStorage.setItem(this.key, JSON.stringify(v)); } catch (e) { /* not remembered */ } },
 };
 let game = {stage: 'setup', pos: GAME_POS[0], kind: 'ros'};
+let gameMode = 'blind';
 
 /** Score out of 100 for a ladder (players in the order the user placed them, best first). */
 function blindRankScore(placed) {
@@ -2459,7 +2480,9 @@ function blindRankScore(placed) {
       if (placed[i].rank > placed[j].rank) lost += gap;   // i was placed above j but is really ranked lower
     }
   }
-  return worst ? Math.round(100 * (1 - lost / worst)) : 100;
+  if (!worst || !lost) return 100;
+  if (lost >= worst) return 0;
+  return Math.max(1, Math.min(99, Math.round(100 * (1 - lost / worst))));   // 100 is only for a perfect order
 }
 
 function gameVerdict(score) {
@@ -2510,11 +2533,6 @@ function gameHint(sid) {
   if (!p) return '';
   const bits = [];
   if (p.b && p.b.bd) { const a = ageFrom(p.b.bd); if (a) bits.push(`Age ${a}`); }
-  if (NBA) {
-    if (p.log.length) bits.push(`${fmt(p.log.reduce((s, g) => s + nbaPoints(g.slice(2), D.scoring), 0) / p.log.length)} fpts/game this season`);
-  } else if (p.log.length) {
-    bits.push(`${fmt(p.log.reduce((s, g) => s + g[2], 0) / p.log.length)} PPR/game this season`);
-  }
   return bits.join(' · ');
 }
 
@@ -2538,10 +2556,16 @@ function gameCard(r, big) {
 function renderGames() {
   const box = document.getElementById('gamesBody');
   box.replaceChildren();
+  const picker = el('div', 'tabs');
+  tabs(picker, [['blind', 'Blind Rank'], ['draft', 'Draft']], gameMode, v => { gameMode = v; renderGames(); });
+  box.appendChild(picker);
   const hero = el('div', 'g-hero');
-  hero.appendChild(el('div', 'g-title', 'Blind Rank'));
-  hero.appendChild(el('p', 'desc', 'Five players, one at a time. Slot each into your 1–5 before you see the next. Once a player is placed, he stays.'));
+  hero.appendChild(el('div', 'g-title', gameMode === 'draft' ? 'Draft' : 'Blind Rank'));
+  hero.appendChild(el('p', 'desc', gameMode === 'draft'
+    ? 'Five players a round. Take one, fill your roster, and see how your team stacks up against the best you could have built.'
+    : 'Five players, one at a time. Slot each into your 1–5 before you see the next. Once a player is placed, he stays.'));
   box.appendChild(hero);
+  if (gameMode === 'draft') { renderDraft(box); return; }
 
   if (game.stage === 'setup') {
     const card = el('div', 'card g-setup');
@@ -2653,6 +2677,260 @@ function renderGames() {
   if (game.stage === 'done') {
     box.appendChild(el('p', 'note', `Ranks are each player's spot on the ${D.types[game.kind].tab.toLowerCase()} ${posLabel(game.pos) === 'Overall' ? 'overall' : posLabel(game.pos)} board. A pair in the wrong order costs the gap between their ranks, so close calls cost little.`));
   }
+}
+
+// ---------------------------------------------------------------- games: Draft
+//
+// Fill a standard roster one pick at a time from five players per round. Positions close
+// once their limit is reached. The final score compares your best starting lineup with the
+// best and worst lineups you could have built from the same offers (one pick per round),
+// so every draft is graded on the choices it actually gave you.
+
+const DRAFT = NBA
+  ? {caps: {PG: 3, SG: 3, SF: 2, PF: 3, C: 2}, starters: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'UTIL', 'UTIL'], top: 30, pool: 200}
+  : {caps: {QB: 2, RB: 5, WR: 5, TE: 2, K: 1, DEF: 1}, starters: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'K', 'DEF'], top: 30, pool: 200};
+DRAFT.rounds = Object.values(DRAFT.caps).reduce((a, b) => a + b, 0);
+// Football has no overall board, so players are compared by points above a typical starter
+// at their position (the Nth best in a 12-team league).
+const REPLACEMENT = {QB: 12, RB: 30, WR: 30, TE: 12, K: 12, DEF: 12};
+let draft = {stage: 'setup'};
+
+/** A player's projected fantasy points per week for the rest of the season. */
+function draftValue(sid) {
+  const p = P[sid];
+  if (!p) return 0;
+  if (NBA) {
+    const left = gamesOf(p.t).filter(g => g[0] >= TODAY).length;
+    const weeks = Math.max(1, Object.values(CAL.weeks).filter(([, end]) => end >= TODAY).length);
+    return nbaPoints(p.pg, D.scoring) * left / weeks;
+  }
+  const ws = ROS_WEEKS;
+  return ws.reduce((s, w) => s + (p.proj[String(w)] || 0), 0) / ws.length;
+}
+
+let draftOrderCache = null;
+/** Players in overall draft order: basketball's overall board; football by value over replacement. */
+function draftOrder() {
+  if (draftOrderCache) return draftOrderCache;
+  if (NBA) {
+    draftOrderCache = (((D.types.ros || {}).rankings || {}).ALL || []).filter(r => r.sid && P[r.sid] && P[r.sid].pg).map(r => r.sid);
+  } else {
+    const byPos = {};
+    Object.entries(P).forEach(([sid, p]) => { if (p.t && DRAFT.caps[p.p]) (byPos[p.p] = byPos[p.p] || []).push([sid, draftValue(sid)]); });
+    const vor = [];
+    Object.entries(byPos).forEach(([pos, list]) => {
+      list.sort((a, b) => b[1] - a[1]);
+      const base = (list[Math.min(list.length - 1, REPLACEMENT[pos] - 1)] || [0, 0])[1];
+      list.forEach(([sid, v]) => vor.push([sid, v - base]));
+    });
+    draftOrderCache = vor.sort((a, b) => b[1] - a[1]).map(x => x[0]);
+  }
+  return draftOrderCache;
+}
+
+const draftPl = sid => ({sid, name: P[sid].n, pos: P[sid].p, el: P[sid].el, team: P[sid].t, inj: P[sid].i});
+/** Which roster position a player would fill: the first of his positions with room. */
+function draftSpot(sid, counts) {
+  const p = P[sid];
+  return (NBA ? (p.el || [p.p]) : [p.p]).find(x => DRAFT.caps[x] && (counts[x] || 0) < DRAFT.caps[x]) || null;
+}
+
+function draftOffer() {
+  const order = draftOrder();
+  const taken = new Set(draft.picks.map(x => x.sid));
+  const rank = new Map(order.map((sid, i) => [sid, i]));
+  const open = order.filter(sid => !taken.has(sid) && draftSpot(sid, draft.counts));
+  if (!open.length) return [];
+  const offer = [];
+  const usedPos = new Set();
+  const take = sid => { offer.push(sid); usedPos.add(draftSpot(sid, draft.counts)); };
+  // Always one top-30 player (or the best left at an open position, late in the draft).
+  const top = open.filter(sid => rank.get(sid) < DRAFT.top);
+  take(top.length ? top[Math.floor(Math.random() * top.length)] : open[0]);
+  // The rest from a window that deepens each round, one per position while positions last.
+  const depth = Math.min(DRAFT.pool, 40 + 12 * draft.round);
+  for (let pass = 0; pass < 2 && offer.length < 5; pass++) {
+    const cands = open.filter(sid => !offer.includes(sid) && rank.get(sid) < depth && (pass || !usedPos.has(draftSpot(sid, draft.counts))));
+    while (offer.length < 5 && cands.length) {
+      const sid = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
+      if (pass || !usedPos.has(draftSpot(sid, draft.counts))) take(sid);
+    }
+  }
+  // Very late, fall back to anyone left.
+  for (const sid of open) { if (offer.length >= 5) break; if (!offer.includes(sid)) take(sid); }
+  return offer.sort(() => Math.random() - 0.5);
+}
+
+function startDraft() {
+  draft = {stage: 'play', round: 1, picks: [], counts: {}, offers: []};
+  draft.offer = draftOffer();
+  draft.offers.push(draft.offer);
+  renderGames();
+}
+
+function draftPick(sid) {
+  if (draft.stage !== 'play' || !draft.offer.includes(sid)) return;
+  const spot = draftSpot(sid, draft.counts);
+  draft.counts[spot] = (draft.counts[spot] || 0) + 1;
+  draft.picks.push({sid, spot, round: draft.round});
+  if (draft.picks.length >= DRAFT.rounds) { finishDraft(); return; }
+  draft.round++;
+  draft.offer = draftOffer();
+  if (!draft.offer.length) { finishDraft(); return; }
+  draft.offers.push(draft.offer);
+  renderGames();
+}
+
+/** Best (or worst) starting lineup buildable with at most one player per round of offers. */
+function lineupFromOffers(offers, best) {
+  const slots = DRAFT.starters;
+  const full = (1 << slots.length) - 1;
+  let dp = new Map([[0, 0]]);
+  offers.forEach(offer => {
+    const next = new Map(dp);   // skipping a round (that pick goes to the bench)
+    dp.forEach((v, mask) => offer.forEach(sid => {
+      const pl = draftPl(sid);
+      const val = draftValue(sid);
+      slots.forEach((slot, i) => {
+        if (mask & (1 << i) || !eligible(pl, slot)) return;
+        const m = mask | (1 << i), nv = v + val;
+        if (!next.has(m) || (best ? nv > next.get(m) : nv < next.get(m))) next.set(m, nv);
+      });
+    }));
+    dp = next;
+  });
+  if (dp.has(full)) return dp.get(full);
+  return best ? Math.max(...dp.values()) : 0;
+}
+
+function finishDraft() {
+  const team = {players: draft.picks.map(x => draftPl(x.sid))};
+  const lineup = bestLineup({slots: DRAFT.starters}, team, null, false, pl => draftValue(pl.sid));
+  const mine = lineup.total;
+  const best = lineupFromOffers(draft.offers, true);
+  const worst = lineupFromOffers(draft.offers, false);
+  let score = best > worst ? 100 * (mine - worst) / (best - worst) : 100;
+  score = mine >= best - 1e-6 ? 100 : Math.max(0, Math.min(99, Math.round(score)));
+  draft = {...draft, stage: 'done', lineup, mine, best, worst, score};
+  const st = gameStore.get();
+  const k = `${D.sport || 'football'}:draft`;
+  draft.prevBest = st[k];
+  st[k] = Math.max(st[k] || 0, score);
+  gameStore.set(st);
+  renderGames();
+}
+
+function draftNeeds() {
+  const bar = el('div', 'd-needs');
+  Object.entries(DRAFT.caps).forEach(([pos, cap]) => {
+    const n = draft.counts[pos] || 0;
+    const chip = el('span', 'd-need' + (n >= cap ? ' full' : ''));
+    chip.appendChild(el('b', '', posLabel(pos)));
+    chip.appendChild(document.createTextNode(` ${n}/${cap}`));
+    bar.appendChild(chip);
+  });
+  return bar;
+}
+
+function draftRosterList() {
+  const box = el('div', 'd-roster');
+  Object.keys(DRAFT.caps).forEach(pos => {
+    draft.picks.filter(x => x.spot === pos).forEach(x => {
+      const row = el('div', 'd-roster-row');
+      row.appendChild(el('span', 'd-roster-pos', posLabel(pos)));
+      row.appendChild(nameTag(draftPl(x.sid), {pos: false}));
+      row.appendChild(el('span', 'desc', `Rd ${x.round}`));
+      box.appendChild(row);
+    });
+  });
+  if (!draft.picks.length) box.appendChild(el('p', 'empty', 'Your picks show up here.'));
+  return box;
+}
+
+function renderDraft(box) {
+  if (draft.stage === 'setup') {
+    const card = el('div', 'card g-setup');
+    card.appendChild(el('h2', '', `Build a ${DRAFT.rounds}-player roster`));
+    card.appendChild(el('p', 'desc', `Each round you get five players, from different positions where possible and always with at least one top-${DRAFT.top} player. ` +
+      `Pick one. Once a position is full (${Object.entries(DRAFT.caps).map(([p, c]) => `${c} ${posLabel(p)}`).join(', ')}), it stops showing up.`));
+    card.appendChild(el('p', 'desc', `Your score compares your best starting lineup (${DRAFT.starters.map(s => SLOT_LABEL[s] || s).join(', ')}) with the best and worst you could have built from the same offers: 100 is the best possible team.`));
+    const row = el('div', 'g-start-row');
+    const go = el('button', 'btn g-go', 'Start draft'); go.type = 'button';
+    go.disabled = draftOrder().length < 60;
+    go.addEventListener('click', startDraft);
+    row.appendChild(go);
+    const best = gameStore.get()[`${D.sport || 'football'}:draft`];
+    if (best != null) row.appendChild(el('span', 'desc', `Your best: ${best}`));
+    card.appendChild(row);
+    box.appendChild(card);
+    return;
+  }
+  if (draft.stage === 'play') {
+    const head = el('div', 'd-head');
+    head.appendChild(el('div', 'g-verdict', `Round ${draft.round} of ${DRAFT.rounds}`));
+    const prog = el('div', 'd-prog'); const fill = el('span'); fill.style.width = `${100 * (draft.round - 1) / DRAFT.rounds}%`; prog.appendChild(fill);
+    head.appendChild(prog);
+    head.appendChild(draftNeeds());
+    box.appendChild(head);
+    const grid = el('div', 'd-offer');
+    draft.offer.forEach((sid, i) => {
+      const b = el('button', 'd-pick g-enter'); b.type = 'button';
+      b.style.animationDelay = `${i * 60}ms`;
+      const card = gameCard({sid}, true);
+      card.appendChild(el('div', 'd-for', `Fills ${posLabel(draftSpot(sid, draft.counts))}`));
+      b.appendChild(card);
+      b.addEventListener('click', () => draftPick(sid));
+      grid.appendChild(b);
+    });
+    box.appendChild(grid);
+    const rw = el('div', 'section');
+    rw.appendChild(el('h3', '', 'Your roster'));
+    rw.appendChild(draftRosterList());
+    box.appendChild(rw);
+    return;
+  }
+  // Done
+  const stage = el('div', 'g-stage');
+  const left = el('div', 'g-left');
+  const ring = el('div', 'g-ring'); ring.style.setProperty('--pct', String(draft.score));
+  ring.appendChild(el('div', 'g-ring-num', String(draft.score)));
+  left.appendChild(ring);
+  const verdict = draft.score === 100 ? 'Perfect draft!' : draft.score >= 90 ? 'League winner' : draft.score >= 75 ? 'Playoff team' : draft.score >= 50 ? 'Middle of the pack' : 'Rebuilding year';
+  left.appendChild(el('div', 'g-verdict', verdict));
+  left.appendChild(el('p', 'desc', `Your starters project ${fmt(draft.mine)} points a week. The best lineup your offers allowed: ${fmt(draft.best)}; the worst: ${fmt(draft.worst)}.` +
+    (draft.prevBest != null && draft.score > draft.prevBest ? ` New best (was ${draft.prevBest}).` : '')));
+  const btns = el('div', 'g-start-row');
+  const again = el('button', 'btn g-go', 'Draft again'); again.type = 'button'; again.addEventListener('click', startDraft);
+  const share = el('button', 'btn ghost', 'Copy result'); share.type = 'button';
+  share.addEventListener('click', () => {
+    const text = `Draft (${NBA ? 'basketball' : 'football'}): power score ${draft.score}/100\n` +
+      draft.lineup.picks.map((p, i) => p ? `${SLOT_LABEL[DRAFT.starters[i]] || DRAFT.starters[i]}: ${p.pl.name}` : null).filter(Boolean).join('\n');
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => { share.textContent = 'Copied!'; }, () => { share.textContent = 'Couldn\'t copy'; });
+  });
+  btns.append(again, share);
+  left.appendChild(btns);
+  if (draft.score >= 90 && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) confetti();
+  stage.appendChild(left);
+
+  const right = el('div', 'g-right');
+  right.appendChild(el('div', 'g-ladder-head', 'Your starting lineup'));
+  const starters = new Set(draft.lineup.picks.filter(Boolean).map(p => p.pl.sid));
+  const rows = DRAFT.starters.map((slot, i) => {
+    const p = draft.lineup.picks[i];
+    const tr = el('tr');
+    tr.appendChild(td(SLOT_LABEL[slot] || slot, 'l muted'));
+    const c = td('', 'l'); if (p) c.appendChild(nameTag(p.pl)); else c.appendChild(el('span', 'muted', 'Empty'));
+    tr.appendChild(c);
+    tr.appendChild(td(p ? fmt(p.pts) : '–', 'avg'));
+    return tr;
+  });
+  const foot = el('tr'); foot.appendChild(td('Total', 'l')); foot.appendChild(td('')); foot.appendChild(td(fmt(draft.mine)));
+  right.appendChild(table([['Slot', 'l'], ['Player', 'l'], 'Pts/wk'], rows, foot));
+  const bench = draft.picks.filter(x => !starters.has(x.sid));
+  if (bench.length) right.appendChild(el('p', 'note', 'Bench: ' + bench.map(x => `${P[x.sid].n} (${fmt(draftValue(x.sid))})`).join(', ')));
+  stage.appendChild(right);
+  box.appendChild(stage);
+  box.appendChild(el('p', 'note', `Points per week are rest-of-season projections (${NBA ? 'ESPN standard points, per-game projection × games left' : 'full PPR'}). Only starters count toward the score.`));
 }
 
 function confetti() {

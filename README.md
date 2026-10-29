@@ -96,7 +96,13 @@ How the league numbers work:
 
 ## Games: Blind Rank
 
-The **Games** tab on both pages. Pick a position and a board (this week, rest of season or dynasty), and five players from the top of that board arrive one at a time; place each in a 1–5 ladder before you see the next. Every pair you put in the wrong order costs the gap between their real ranks, so swapping #9 and #10 costs 1 while putting #20 above #10 costs 10. The score is 100% minus your cost as a share of the worst possible order (fully reversed = 0%). Best scores are remembered per position in your browser. Keys 1–5 place the current player.
+The **Games** tab on both pages. Pick a position and a board (this week, rest of season or dynasty), and five players from the top of that board arrive one at a time; place each in a 1–5 ladder before you see the next. Every pair you put in the wrong order costs the gap between their real ranks, so swapping #9 and #10 costs 1 while putting #20 above #10 costs 10. The score is 100% minus your cost as a share of the worst possible order (fully reversed = 0%). Only a perfect order scores 100% (any mistake caps it at 99%) and only a fully reversed one scores 0%. Cards show age, team and injury status, but no stats. Best scores are remembered per position in your browser. Keys 1–5 place the current player.
+
+## Games: Draft
+
+Fill a standard ESPN-size roster one pick a round: 16 in football (2 QB, 5 RB, 5 WR, 2 TE, 1 K, 1 D/ST; starters QB, 2 RB, 2 WR, TE, FLEX, K, D/ST) and 13 in basketball (3 PG, 3 SG, 2 SF, 3 PF, 2 C; starters PG, SG, SF, PF, C, G, F, 3 UTIL). Each round offers five players, from different positions where possible and always including a top-30 player overall, drawn from a pool that deepens each round. A position stops appearing once it's full. Overall order is the basketball rest-of-season overall board; in football, where there's no overall board, players are ordered by projected points above a typical starter at their position.
+
+The power score compares your best starting lineup's projected points per week with the best and worst lineups you could have built from the offers you actually saw (one player per round): 100 is the best possible team from those choices, 0 the worst. Bench players don't count toward it.
 
 ## Hosted on GitHub Pages
 
