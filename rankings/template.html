@@ -91,6 +91,7 @@ td.good b,td.bad b{color:inherit}
 .team-chip{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:1px 6px;border-radius:6px;color:var(--text);
   background:color-mix(in srgb,var(--tc,#888) 16%,transparent);border:1px solid color-mix(in srgb,var(--tc,#888) 45%,transparent)}
 .ptag .pos{font-size:12px;color:var(--muted)}
+.opp-chip{display:inline-block;font-size:10.5px;font-weight:600;letter-spacing:.02em;padding:1px 6px;border-radius:6px;color:var(--muted);background:var(--row);border:1px solid var(--line);white-space:nowrap}
 .ptag .badge{margin-left:0}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px;box-shadow:var(--shadow)}
 .section{margin-bottom:26px}
@@ -497,7 +498,7 @@ function injuryBadge(status, sid) {
 }
 
 /** Face, name (opens the player popup unless link is false), team chip, position and injury badge. */
-function nameTag(pl, {link = true, pos = true} = {}) {
+function nameTag(pl, {link = true, pos = true, opp = null} = {}) {
   const sid = pl.sid;
   const team = pl.team || (sid && P[sid] ? P[sid].t : '');
   const position = pl.pos || (sid && P[sid] ? P[sid].p : '');
@@ -505,6 +506,7 @@ function nameTag(pl, {link = true, pos = true} = {}) {
   tag.appendChild(face(sid, pl.name, position, team));
   tag.appendChild(link ? playerButton(sid, pl.name) : el('span', '', pl.name));
   const chip = teamChip(team); if (chip) tag.appendChild(chip);
+  if (opp) tag.appendChild(el('span', 'opp-chip', opp));
   const elig = pl.el || (sid && P[sid] ? P[sid].el : null);
   if (pos && position) tag.appendChild(el('span', 'pos', NBA && elig ? elig.join('/') : posLabel(position)));
   const status = pl.inj !== undefined ? pl.inj : (sid && P[sid] ? P[sid].i : null);
@@ -965,6 +967,18 @@ document.getElementById('nav-games').addEventListener('click', () => show('games
 
 // ---------------------------------------------------------------- rankings tab
 
+/** "vs KC" for the upcoming week (football), or every opponent left this week (basketball). */
+function weekOpponents(team) {
+  if (!team) return null;
+  if (NBA) {
+    const wk = CAL.weeks[String(D.week)];
+    const opps = wk ? gamesOf(team).filter(g => g[0] >= TODAY && g[0] <= wk[1]).map(g => g[1]) : [];
+    return opps.length ? 'vs ' + opps.join(', ') : 'No games';
+  }
+  const g = nextGame(team);
+  return g ? (g.bye ? 'BYE' : 'vs ' + g.opp) : null;
+}
+
 function renderRankings() {
   const T = D.types[kind];
   tabs(document.getElementById('types'), KINDS.map(k => [k, D.types[k].tab]), kind, v => { kind = v; renderRankings(); });
@@ -991,7 +1005,8 @@ function renderRankings() {
     rows.forEach(r => {
       const tr = el('tr');
       tr.appendChild(td(r.rank, 'rank'));
-      const name = td('', 'l'); name.appendChild(nameTag({sid: r.sid, name: r.name, team: r.sid && P[r.sid] ? P[r.sid].t : r.team, pos}, {pos: false}));
+      const team = r.sid && P[r.sid] ? P[r.sid].t : r.team;
+      const name = td('', 'l'); name.appendChild(nameTag({sid: r.sid, name: r.name, team, pos}, {pos: false, opp: kind === 'week' ? weekOpponents(team) : null}));
       tr.appendChild(name);
       tr.appendChild(td(r.avg.toFixed(1), 'avg'));
       sources.forEach(s => tr.appendChild(td(r.ranks[s] !== undefined ? r.ranks[s] : '–')));
