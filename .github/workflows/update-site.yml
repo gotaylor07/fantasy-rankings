@@ -40,10 +40,10 @@ jobs:
           echo "run=$run" >> "$GITHUB_OUTPUT"
           echo "New York is on $zone; running: $run"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.when.outputs.run == 'yes'
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: steps.when.outputs.run == 'yes'
         with:
           python-version: "3.12"
@@ -55,7 +55,7 @@ jobs:
       # Past seasons and last run's boards (the fallback when a source fails) carry over between runs.
       - name: Restore cached data
         if: steps.when.outputs.run == 'yes'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: data
           key: data-${{ github.run_id }}
@@ -78,7 +78,7 @@ jobs:
         if: steps.when.outputs.run == 'yes'
         run: rm -f site/demo* && ls -la site
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         if: steps.when.outputs.run == 'yes'
         with:
           path: site
@@ -92,4 +92,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
