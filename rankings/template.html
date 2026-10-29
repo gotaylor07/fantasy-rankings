@@ -3513,7 +3513,7 @@ setInterval(() => {
 
 const fmtLine = v => (v == null ? '–' : String(v));
 
-function gameCard(ev) {
+function slateCard(ev) {
   const card = el('div', 'sl-game ' + ev.state);
   const top = el('div', 'sl-status');
   if (ev.state === 'in') { top.appendChild(el('span', 'sl-live-dot', '')); top.appendChild(el('b', '', ev.detail)); }
@@ -3600,7 +3600,7 @@ function renderSlate() {
   shown.forEach(d => {
     box.appendChild(el('h3', 'sl-day', new Date(d + 'T12:00:00').toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'})));
     const grid = el('div', 'sl-grid');
-    slate.events.filter(e => etDate(e.date) === d).forEach(ev => grid.appendChild(gameCard(ev)));
+    slate.events.filter(e => etDate(e.date) === d).forEach(ev => grid.appendChild(slateCard(ev)));
     box.appendChild(grid);
   });
   box.appendChild(el('p', 'foot', `Scores and play-by-play from ESPN. Lines are ${Object.values(slate.odds)[0] && Object.values(slate.odds)[0].provider || 'sportsbook'} pre-game lines (spread, over/under, moneyline); they aren't updated during games.`));
