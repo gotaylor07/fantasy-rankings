@@ -94,6 +94,10 @@ How the league numbers work:
 - **Team rosters**: click any team name (power rankings, position strengths, projected records, matchups) for its record, power rank, playoff odds, this week's opponent, position ranks and full roster, with a button to start a trade with that team.
 - **Power rankings**: a 0–100 score that blends all-play record and win-loss record with projected rest-of-season roster strength. Results get more weight as the season goes on, up to 60% after six games.
 
+## Games: Blind Rank
+
+The **Games** tab on both pages. Pick a position and a board (this week, rest of season or dynasty), and five players from the top of that board arrive one at a time; place each in a 1–5 ladder before you see the next. Every pair you put in the wrong order costs the gap between their real ranks, so swapping #9 and #10 costs 1 while putting #20 above #10 costs 10. The score is 100% minus your cost as a share of the worst possible order (fully reversed = 0%). Best scores are remembered per position in your browser. Keys 1–5 place the current player.
+
 ## Hosted on GitHub Pages
 
 `.github/workflows/update-site.yml` rebuilds both pages every day at 11 am US Eastern on GitHub's servers and publishes them with GitHub Pages, so your computer doesn't need to be on. The football page is the site's front page; basketball is `basketball.html`.

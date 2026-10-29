@@ -135,6 +135,60 @@ dialog::backdrop{background:var(--backdrop);backdrop-filter:blur(3px)}
 .check:last-child{border-bottom:0}
 .check .val{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
 .verdict{margin:14px 0 6px}
+/* Games: Blind Rank */
+.g-hero{margin-bottom:14px}
+.g-title{font-size:30px;font-weight:800;letter-spacing:-.03em;background:linear-gradient(135deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent;width:fit-content}
+.g-setup h2{margin-top:2px}
+.g-sub{margin-top:14px !important}
+.g-start-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px}
+.btn.g-go{padding:11px 26px;font-size:16px;border-radius:12px;background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 60%,var(--accent-2)));border:0;box-shadow:0 8px 22px color-mix(in srgb,var(--accent) 35%,transparent);transition:transform .12s}
+.btn.g-go:hover:not(:disabled){transform:translateY(-1px)}
+.g-stage{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:22px;align-items:start}
+.g-left{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px 18px;box-shadow:var(--shadow);position:sticky;top:12px}
+.g-dots{display:flex;gap:8px}
+.g-dots span{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.g-dots span.done{background:var(--accent)}
+.g-dots span.now{background:var(--accent-2);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent-2) 25%,transparent)}
+.g-card{display:flex;align-items:center;gap:12px;text-align:left;min-width:0}
+.g-card .pl-photo{width:44px;height:44px;border-radius:12px;border-width:1.5px}
+.g-card .pl-photo.none span{font-size:15px}
+.g-card-info{min-width:0}
+.g-card-name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-card.big{flex-direction:column;text-align:center;gap:10px;padding:18px 22px;border-radius:18px;width:100%;max-width:340px;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--tc,var(--accent)) 26%,var(--card)),var(--card) 70%);border:1px solid color-mix(in srgb,var(--tc,var(--accent)) 45%,var(--line))}
+.g-card.big .pl-photo{width:150px;height:150px;border-radius:20px}
+.g-card.big .g-card-name{font-size:24px;white-space:normal}
+.g-card.big .pl-meta{justify-content:center}
+.g-hint{margin-top:6px}
+.g-enter{animation:g-pop .38s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes g-pop{from{opacity:0;transform:translateY(14px) scale(.94)}to{opacity:1;transform:none}}
+.g-right{min-width:0}
+.g-ladder-head{font-weight:700;margin-bottom:4px}
+.g-ends{font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin:4px 0}
+.g-ladder{display:flex;flex-direction:column;gap:10px}
+.g-slot{display:flex;align-items:center;gap:14px;min-height:70px;padding:10px 14px;border-radius:14px;border:2px dashed var(--line);background:var(--card);color:var(--text);font:inherit;text-align:left;width:100%}
+button.g-slot{cursor:pointer;transition:border-color .15s,background .15s,transform .12s}
+button.g-slot:hover,button.g-slot:focus-visible{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--card));transform:translateX(3px);outline:none}
+.g-slot.filled{border-style:solid;box-shadow:var(--shadow);animation:g-pop .3s ease-out}
+.g-num{flex:none;width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-weight:800;font-size:18px;background:var(--card-2);border:1px solid var(--line)}
+.g-slot.filled .g-num{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border:0}
+.g-empty{color:var(--muted);font-size:14px}
+.g-slot .g-card{flex:1}
+.g-result{margin-left:auto;text-align:right;display:flex;flex-direction:column;flex:none}
+.g-slot.exact{border-color:color-mix(in srgb,var(--good) 70%,transparent);background:color-mix(in srgb,var(--good) 8%,var(--card))}
+.g-slot.close{border-color:color-mix(in srgb,#f59e0b 70%,transparent);background:color-mix(in srgb,#f59e0b 8%,var(--card))}
+.g-slot.miss{border-color:color-mix(in srgb,var(--bad) 60%,transparent);background:color-mix(in srgb,var(--bad) 7%,var(--card))}
+.g-slot.exact .g-result b{color:var(--good)}
+.g-slot.miss .g-result b{color:var(--bad)}
+.g-ring{--pct:0;width:170px;height:170px;border-radius:50%;display:grid;place-items:center;
+  background:conic-gradient(var(--accent) calc(var(--pct) * 1%),var(--line) 0)}
+.g-ring::before{content:"";grid-area:1/1;width:136px;height:136px;border-radius:50%;background:var(--card)}
+.g-ring-num{grid-area:1/1;font-size:40px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.g-verdict{font-size:22px;font-weight:800}
+.confetti{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:50}
+.confetti i{position:absolute;top:-12px;width:9px;height:14px;border-radius:2px;animation:g-fall linear forwards}
+@keyframes g-fall{to{transform:translateY(105vh) rotate(720deg);opacity:.9}}
+@media (prefers-reduced-motion: reduce){.g-enter,.g-slot.filled{animation:none}}
 .mu-mini{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .mu-mini-line{font-size:17px;margin-top:2px}
 .mu-mini-odds{display:flex;align-items:center;gap:10px}
@@ -154,7 +208,7 @@ tr.bench-row td{color:var(--muted)}
 td.cell-start{background:color-mix(in srgb,var(--accent) 12%,transparent);font-weight:600}
 td.cell-sit{color:var(--muted)}
 td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
-@media (max-width:640px){.mu-score{grid-template-columns:1fr}.mu-side.right{text-align:left}.mu-side.right .mu-name{justify-content:flex-start}.mu-pts{font-size:28px}.hero{flex-wrap:wrap}.sport{margin-left:0}.connect,.trade-grid{grid-template-columns:1fr}th,td{padding:8px 9px}.pl-photo{width:76px;height:76px}.dlg-head{flex-wrap:wrap}.nav{display:flex}.nav button{flex:1}h1{font-size:20px}}
+@media (max-width:640px){.g-stage{grid-template-columns:1fr}.g-left{position:static}.g-card.big .pl-photo{width:110px;height:110px}.mu-score{grid-template-columns:1fr}.mu-side.right{text-align:left}.mu-side.right .mu-name{justify-content:flex-start}.mu-pts{font-size:28px}.hero{flex-wrap:wrap}.sport{margin-left:0}.connect,.trade-grid{grid-template-columns:1fr}th,td{padding:8px 9px}.pl-photo{width:76px;height:76px}.dlg-head{flex-wrap:wrap}.nav{display:flex}.nav button{flex:1}h1{font-size:20px}}
 </style>
 </head>
 <body>
@@ -173,6 +227,7 @@ td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
   <div class="nav" role="tablist">
     <button type="button" role="tab" id="nav-rankings" aria-controls="view-rankings">Player rankings</button>
     <button type="button" role="tab" id="nav-league" aria-controls="view-league">My league</button>
+    <button type="button" role="tab" id="nav-games" aria-controls="view-games">Games</button>
   </div>
 
   <section id="view-rankings" role="tabpanel" aria-labelledby="nav-rankings">
@@ -216,6 +271,10 @@ td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
       </div>
     </div>
     <div id="leagueBody"></div>
+  </section>
+
+  <section id="view-games" role="tabpanel" aria-labelledby="nav-games" hidden>
+    <div id="gamesBody"></div>
   </section>
   <p class="foot" id="gen"></p>
 </div>
@@ -852,16 +911,18 @@ function setHash(changes) {
 }
 
 function show(v) {
-  view = v === 'league' ? 'league' : 'rankings';
-  document.getElementById('nav-rankings').setAttribute('aria-selected', String(view === 'rankings'));
-  document.getElementById('nav-league').setAttribute('aria-selected', String(view === 'league'));
-  document.getElementById('view-rankings').hidden = view !== 'rankings';
-  document.getElementById('view-league').hidden = view !== 'league';
+  view = ['league', 'games'].includes(v) ? v : 'rankings';
+  ['rankings', 'league', 'games'].forEach(k => {
+    document.getElementById('nav-' + k).setAttribute('aria-selected', String(view === k));
+    document.getElementById('view-' + k).hidden = view !== k;
+  });
   setHash({});
   if (view === 'league') renderLeague();
+  if (view === 'games') renderGames();
 }
 document.getElementById('nav-rankings').addEventListener('click', () => show('rankings'));
 document.getElementById('nav-league').addEventListener('click', () => show('league'));
+document.getElementById('nav-games').addEventListener('click', () => show('games'));
 
 // ---------------------------------------------------------------- rankings tab
 
@@ -2368,6 +2429,247 @@ function openTeam(teamId) {
 }
 
 document.getElementById('tview').addEventListener('click', e => { if (e.target.id === 'tview') e.target.close(); });
+
+// ---------------------------------------------------------------- games: Blind Rank
+//
+// Five players from one position arrive one at a time; place each in a 1-5 ladder without
+// seeing who comes next. Scoring compares every pair of players: getting a pair backwards
+// costs the gap between their real ranks, so swapping #9 and #10 barely matters while
+// putting #20 above #10 costs ten times as much. Score = 100% minus the share of the
+// worst possible cost you paid.
+
+const GAME_POS = NBA ? ['ALL', 'PG', 'SG', 'SF', 'PF', 'C'] : ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
+// How deep into each board the five players are drawn from (top N at that position).
+const GAME_POOL = NBA ? {ALL: 150, PG: 50, SG: 50, SF: 50, PF: 50, C: 40} : {QB: 32, RB: 60, WR: 72, TE: 32, K: 24, DEF: 24};
+const GAME_KINDS = () => KINDS.filter(k => GAME_POS.some(p => (((D.types[k] || {}).rankings || {})[p] || []).length >= 5));
+const gameStore = {
+  key: 'fr-games-v1',
+  get() { try { return JSON.parse(localStorage.getItem(this.key)) || {}; } catch (e) { return {}; } },
+  set(v) { try { localStorage.setItem(this.key, JSON.stringify(v)); } catch (e) { /* not remembered */ } },
+};
+let game = {stage: 'setup', pos: GAME_POS[0], kind: 'ros'};
+
+/** Score out of 100 for a ladder (players in the order the user placed them, best first). */
+function blindRankScore(placed) {
+  let lost = 0, worst = 0;
+  for (let i = 0; i < placed.length; i++) {
+    for (let j = i + 1; j < placed.length; j++) {
+      const gap = Math.abs(placed[i].rank - placed[j].rank);
+      worst += gap;
+      if (placed[i].rank > placed[j].rank) lost += gap;   // i was placed above j but is really ranked lower
+    }
+  }
+  return worst ? Math.round(100 * (1 - lost / worst)) : 100;
+}
+
+function gameVerdict(score) {
+  if (score === 100) return ['Perfect ranking!', 'You nailed every spot.'];
+  if (score >= 90) return ['Expert eye', 'Only the closest calls went the other way.'];
+  if (score >= 75) return ['Sharp', 'You know this position.'];
+  if (score >= 50) return ['Not bad', 'A couple of big swings cost you.'];
+  return ['Back to the film room', 'The board sees it very differently.'];
+}
+
+function startGame() {
+  const rows = (((D.types[game.kind] || {}).rankings || {})[game.pos] || []).filter(r => r.sid && P[r.sid]);
+  const pool = rows.slice(0, Math.min(rows.length, GAME_POOL[game.pos] || 50));
+  if (pool.length < 5) return;
+  const picks = [];
+  const left = pool.slice();
+  while (picks.length < 5) picks.push(left.splice(Math.floor(Math.random() * left.length), 1)[0]);
+  game = {...game, stage: 'play', deck: picks, turn: 0, slots: [null, null, null, null, null]};
+  renderGames();
+}
+
+function placeInSlot(i) {
+  if (game.stage !== 'play' || game.slots[i]) return;
+  game.slots[i] = game.deck[game.turn];
+  game.turn++;
+  if (game.turn === 5) {
+    game.stage = 'done';
+    game.score = blindRankScore(game.slots);
+    const st = gameStore.get();
+    const k = `${D.sport || 'football'}:${game.kind}:${game.pos}`;
+    game.prevBest = st[k];
+    st[k] = Math.max(st[k] || 0, game.score);
+    st.played = (st.played || 0) + 1;
+    gameStore.set(st);
+  }
+  renderGames();
+}
+
+document.addEventListener('keydown', e => {
+  if (view !== 'games' || game.stage !== 'play' || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (document.querySelector('dialog[open]')) return;
+  const n = +e.key;
+  if (n >= 1 && n <= 5) { e.preventDefault(); placeInSlot(n - 1); }
+});
+
+function gameHint(sid) {
+  const p = P[sid];
+  if (!p) return '';
+  const bits = [];
+  if (p.b && p.b.bd) { const a = ageFrom(p.b.bd); if (a) bits.push(`Age ${a}`); }
+  if (NBA) {
+    if (p.log.length) bits.push(`${fmt(p.log.reduce((s, g) => s + nbaPoints(g.slice(2), D.scoring), 0) / p.log.length)} fpts/game this season`);
+  } else if (p.log.length) {
+    bits.push(`${fmt(p.log.reduce((s, g) => s + g[2], 0) / p.log.length)} PPR/game this season`);
+  }
+  return bits.join(' · ');
+}
+
+function gameCard(r, big) {
+  const p = P[r.sid];
+  const card = tint(el('div', 'g-card' + (big ? ' big' : '')), p.t);
+  card.appendChild(playerPhoto(r.sid, p));
+  const info = el('div', 'g-card-info');
+  info.appendChild(el('div', 'g-card-name', p.n));
+  const meta = el('div', 'pl-meta');
+  const chip = teamChip(p.t); if (chip) meta.appendChild(chip);
+  meta.appendChild(el('span', 'desc', NBA ? (p.el || [p.p]).join('/') : posLabel(p.p)));
+  const inj = injuryBadge(p.i, r.sid); if (inj) meta.appendChild(inj);
+  info.appendChild(meta);
+  const hint = gameHint(r.sid);
+  if (big && hint) info.appendChild(el('div', 'desc g-hint', hint));
+  card.appendChild(info);
+  return card;
+}
+
+function renderGames() {
+  const box = document.getElementById('gamesBody');
+  box.replaceChildren();
+  const hero = el('div', 'g-hero');
+  hero.appendChild(el('div', 'g-title', 'Blind Rank'));
+  hero.appendChild(el('p', 'desc', 'Five players, one at a time. Slot each into your 1–5 before you see the next. Once a player is placed, he stays.'));
+  box.appendChild(hero);
+
+  if (game.stage === 'setup') {
+    const card = el('div', 'card g-setup');
+    card.appendChild(el('h2', '', 'Pick a position'));
+    const pos = el('div', 'tabs');
+    tabs(pos, GAME_POS.map(p => [p, posLabel(p)]), game.pos, v => { game.pos = v; renderGames(); });
+    card.appendChild(pos);
+    card.appendChild(el('h2', 'g-sub', 'Ranked by'));
+    const kinds = GAME_KINDS();
+    if (!kinds.includes(game.kind)) game.kind = kinds[0];
+    const kb = el('div', 'tabs');
+    tabs(kb, kinds.map(k => [k, D.types[k].tab]), game.kind, v => { game.kind = v; renderGames(); });
+    card.appendChild(kb);
+    const rows = (((D.types[game.kind] || {}).rankings || {})[game.pos] || []);
+    const ok = rows.filter(r => r.sid).length >= 5;
+    card.appendChild(el('p', 'desc', ok
+      ? `Players come from the top ${Math.min(rows.length, GAME_POOL[game.pos] || 50)} ${posLabel(game.pos) === 'Overall' ? 'overall' : posLabel(game.pos) + 's'} on the ${D.types[game.kind].tab.toLowerCase()} board, and the board's order is the answer key.`
+      : 'Not enough players on this board for a game.'));
+    const best = gameStore.get()[`${D.sport || 'football'}:${game.kind}:${game.pos}`];
+    const row = el('div', 'g-start-row');
+    const go = el('button', 'btn g-go', 'Start'); go.type = 'button'; go.disabled = !ok;
+    go.addEventListener('click', startGame);
+    row.appendChild(go);
+    if (best != null) row.appendChild(el('span', 'desc', `Your best here: ${best}%`));
+    card.appendChild(row);
+    box.appendChild(card);
+    return;
+  }
+
+  const stageBox = el('div', 'g-stage');
+  const left = el('div', 'g-left');
+  if (game.stage === 'play') {
+    const dots = el('div', 'g-dots');
+    for (let i = 0; i < 5; i++) dots.appendChild(el('span', i < game.turn ? 'done' : i === game.turn ? 'now' : ''));
+    left.appendChild(dots);
+    left.appendChild(el('div', 'desc', `Player ${game.turn + 1} of 5 · ${posLabel(game.pos)} · ${D.types[game.kind].tab}`));
+    const c = gameCard(game.deck[game.turn], true);
+    c.classList.add('g-enter');
+    left.appendChild(c);
+    left.appendChild(el('p', 'note', 'Click a slot, or press 1–5.'));
+  } else {
+    const [title, sub] = gameVerdict(game.score);
+    const ring = el('div', 'g-ring');
+    ring.style.setProperty('--pct', '0');
+    const num = el('div', 'g-ring-num', '0%');
+    ring.appendChild(num);
+    left.appendChild(ring);
+    left.appendChild(el('div', 'g-verdict', title));
+    left.appendChild(el('p', 'desc', sub + (game.prevBest != null && game.score > game.prevBest ? ` New best for ${posLabel(game.pos)} (was ${game.prevBest}%).` : '')));
+    const btns = el('div', 'g-start-row');
+    const again = el('button', 'btn g-go', 'Play again'); again.type = 'button'; again.addEventListener('click', startGame);
+    const change = el('button', 'btn ghost', 'Change position'); change.type = 'button';
+    change.addEventListener('click', () => { game.stage = 'setup'; renderGames(); });
+    const share = el('button', 'btn ghost', 'Copy result'); share.type = 'button';
+    share.addEventListener('click', () => {
+      const text = `Blind Rank · ${posLabel(game.pos)} (${D.types[game.kind].tab}): ${game.score}%\n` +
+        game.slots.map((r, i) => `${i + 1}. ${P[r.sid].n} — actually #${r.rank}`).join('\n');
+      (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => { share.textContent = 'Copied!'; }, () => { share.textContent = 'Couldn\'t copy'; });
+    });
+    btns.append(again, change, share);
+    left.appendChild(btns);
+    // Count the score up and sweep the ring.
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const t0 = performance.now(), dur = reduce ? 0 : 900;
+    const step = now => {
+      const f = dur ? Math.min(1, Math.max(0, (now - t0) / dur)) : 1;   // the first frame can be stamped before t0
+      const v = Math.round(game.score * (1 - Math.pow(1 - f, 3)));
+      num.textContent = v + '%';
+      ring.style.setProperty('--pct', String(v));
+      if (f < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+    // Browsers pause animation frames in background tabs; make sure the final score still shows.
+    setTimeout(() => { num.textContent = game.score + '%'; ring.style.setProperty('--pct', String(game.score)); }, dur + 150);
+    if (game.score >= 90 && !reduce) confetti();
+  }
+  stageBox.appendChild(left);
+
+  // The ladder
+  const ladder = el('div', 'g-ladder');
+  const order = game.stage === 'done' ? game.slots.slice().sort((a, b) => a.rank - b.rank) : null;
+  game.slots.forEach((r, i) => {
+    const slot = el(game.stage === 'play' && !r ? 'button' : 'div', 'g-slot' + (r ? ' filled' : ''));
+    if (slot.tagName === 'BUTTON') { slot.type = 'button'; slot.addEventListener('click', () => placeInSlot(i)); slot.setAttribute('aria-label', `Place at ${i + 1}`); }
+    slot.appendChild(el('div', 'g-num', String(i + 1)));
+    if (r) {
+      slot.appendChild(gameCard(r, false));
+      if (game.stage === 'done') {
+        const truth = order.indexOf(r);
+        const off = Math.abs(truth - i);
+        slot.classList.add(off === 0 ? 'exact' : off === 1 ? 'close' : 'miss');
+        const res = el('div', 'g-result');
+        res.appendChild(el('b', '', `${posLabel(game.pos) === 'Overall' ? '#' : posLabel(game.pos)}${r.rank}`));
+        res.appendChild(el('span', 'desc', off === 0 ? '✓ right spot' : `belongs at ${truth + 1}`));
+        slot.appendChild(res);
+      }
+    } else {
+      slot.appendChild(el('div', 'g-empty', game.stage === 'play' ? 'Place here' : ''));
+    }
+    ladder.appendChild(slot);
+  });
+  const lw = el('div', 'g-right');
+  lw.appendChild(el('div', 'g-ladder-head', game.stage === 'done' ? 'Your ranking vs the board' : 'Your ranking'));
+  lw.appendChild(el('div', 'desc g-ends', 'Best'));
+  lw.appendChild(ladder);
+  lw.appendChild(el('div', 'desc g-ends', 'Worst'));
+  stageBox.appendChild(lw);
+  box.appendChild(stageBox);
+  if (game.stage === 'done') {
+    box.appendChild(el('p', 'note', `Ranks are each player's spot on the ${D.types[game.kind].tab.toLowerCase()} ${posLabel(game.pos) === 'Overall' ? 'overall' : posLabel(game.pos)} board. A pair in the wrong order costs the gap between their ranks, so close calls cost little.`));
+  }
+}
+
+function confetti() {
+  const colors = ['#1d63ed', '#0ea5a4', '#f59e0b', '#ef4444', '#22c55e', '#a855f7'];
+  const layer = el('div', 'confetti');
+  for (let i = 0; i < 70; i++) {
+    const c = el('i');
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.background = colors[i % colors.length];
+    c.style.animationDelay = Math.random() * 0.4 + 's';
+    c.style.animationDuration = 1.6 + Math.random() * 1.2 + 's';
+    c.style.transform = `rotate(${Math.random() * 360}deg)`;
+    layer.appendChild(c);
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 3200);
+}
 
 // ---------------------------------------------------------------- leagues: connecting
 
