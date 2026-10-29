@@ -188,6 +188,8 @@ button.g-slot:hover,button.g-slot:focus-visible{border-color:var(--accent);backg
 .confetti{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:50}
 .confetti i{position:absolute;top:-12px;width:9px;height:14px;border-radius:2px;animation:g-fall linear forwards}
 .d-head{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.d-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.d-respin{font-weight:600}
 .d-prog{height:8px;border-radius:999px;background:var(--line);overflow:hidden}
 .d-prog span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .3s}
 .d-needs{display:flex;flex-wrap:wrap;gap:6px}
@@ -2682,15 +2684,20 @@ function renderGames() {
 
 // ---------------------------------------------------------------- games: Draft
 //
-// Fill a standard starting lineup one pick a round from five players per round. Each pick
-// goes into the most specific open slot (a RB fills a RB spot before the FLEX), and a
-// position stops appearing once no open slot can take it. The final score compares your
-// lineup with the best and worst lineups you could have built from the same offers
-// (one player per round), so every draft is graded on the choices it actually gave you.
+// Fill a standard starting lineup one pick a round from five players per round. Each round's
+// five come from the tier a 12-team snake draft would leave you (players ranked above it are
+// treated as taken by other teams), so the options are close in value. Each pick goes into the
+// most specific open slot (a RB fills a RB spot before the FLEX), and a position stops appearing
+// once no open slot can take it. One respin per draft rerolls the current five. The score
+// compares your lineup with the best and worst lineups you could have built from the offers
+// you picked from (one player per round).
 
 const DRAFT = NBA
-  ? {slots: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'UTIL', 'UTIL'], top: 30, pool: 200}
-  : {slots: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'K', 'DEF'], top: 30, pool: 200};
+  ? {slots: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'UTIL', 'UTIL']}
+  : {slots: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'K', 'DEF']};
+DRAFT.teams = 12;    // the league the tiers come from: round r starts around pick 12(r-1)
+DRAFT.width = 30;    // how many ranks deep each round's tier goes
+DRAFT.respins = 1;
 DRAFT.rounds = DRAFT.slots.length;
 // Fill order: dedicated slots before flexible ones.
 DRAFT.fill = DRAFT.slots.map((s, i) => i).sort((a, b) => SLOT_ELIG[DRAFT.slots[a]].length - SLOT_ELIG[DRAFT.slots[b]].length || a - b);
@@ -2739,33 +2746,46 @@ function draftSpot(sid, filled = draft.filled) {
 }
 const slotName = i => SLOT_LABEL[DRAFT.slots[i]] || DRAFT.slots[i];
 
-function draftOffer() {
+function draftOffer(avoid = []) {
   const order = draftOrder();
   const taken = new Set(draft.filled.filter(Boolean));
   const rank = new Map(order.map((sid, i) => [sid, i]));
   const open = order.filter(sid => !taken.has(sid) && draftSpot(sid) >= 0);
   if (!open.length) return [];
+  // This round's tier; anyone ranked above it has been taken by the other teams.
+  const lo = DRAFT.teams * (draft.round - 1), hi = lo + DRAFT.width;
+  let cands = open.filter(sid => rank.get(sid) >= lo && rank.get(sid) < hi);
+  if (cands.length < 8) {
+    // Few left in the tier who fit an open spot (say, only a K is needed): take the nearest by rank.
+    const dist = sid => { const r = rank.get(sid); return r < lo ? lo - r + 1000 : r >= hi ? r - hi + 1 : 0; };
+    cands = open.slice().sort((x, y) => dist(x) - dist(y)).slice(0, 12);
+  }
+  // A respin avoids repeating the five it replaces when it can.
+  const fresh = cands.filter(sid => !avoid.includes(sid));
+  if (fresh.length >= 5) cands = fresh;
   const offer = [];
   const usedPos = new Set();
-  const take = sid => { offer.push(sid); usedPos.add(P[sid].p); };
-  // Always one top-30 player (or the best left who fits, late in the draft).
-  const top = open.filter(sid => rank.get(sid) < DRAFT.top);
-  take(top.length ? top[Math.floor(Math.random() * top.length)] : open[0]);
-  // The rest from a window that deepens each round, one per position while positions last.
-  const depth = Math.min(DRAFT.pool, 40 + 15 * draft.round);
   for (let pass = 0; pass < 2 && offer.length < 5; pass++) {
-    const cands = open.filter(sid => !offer.includes(sid) && rank.get(sid) < depth);
-    while (offer.length < 5 && cands.length) {
-      const sid = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
-      if (pass || !usedPos.has(P[sid].p)) take(sid);
+    const pool = cands.filter(sid => !offer.includes(sid));
+    while (offer.length < 5 && pool.length) {
+      const sid = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      if (pass || !usedPos.has(P[sid].p)) { offer.push(sid); usedPos.add(P[sid].p); }
     }
   }
-  for (const sid of open) { if (offer.length >= 5) break; if (!offer.includes(sid)) take(sid); }
+  for (const sid of open) { if (offer.length >= 5) break; if (!offer.includes(sid)) offer.push(sid); }
   return offer.sort(() => Math.random() - 0.5);
 }
 
+function draftRespin() {
+  if (draft.stage !== 'play' || draft.respinsLeft <= 0) return;
+  draft.respinsLeft--;
+  draft.offer = draftOffer(draft.offer);
+  draft.offers[draft.offers.length - 1] = draft.offer;   // graded on the set you picked from
+  renderGames();
+}
+
 function startDraft() {
-  draft = {stage: 'play', round: 1, filled: new Array(DRAFT.rounds).fill(null), pickRound: {}, offers: []};
+  draft = {stage: 'play', round: 1, filled: new Array(DRAFT.rounds).fill(null), pickRound: {}, offers: [], respinsLeft: DRAFT.respins};
   draft.offer = draftOffer();
   draft.offers.push(draft.offer);
   renderGames();
@@ -2809,8 +2829,9 @@ function finishDraft() {
   const mine = draft.filled.reduce((s, sid) => s + (sid ? draftValue(sid) : 0), 0);
   const best = lineupFromOffers(draft.offers, true) ?? mine;
   const worst = lineupFromOffers(draft.offers, false) ?? 0;
-  let score = best > worst ? 100 * (mine - worst) / (best - worst) : 100;
-  score = mine >= best - 1e-6 ? 100 : Math.max(0, Math.min(99, Math.round(score)));
+  // Share of the way from the worst to the best possible lineup. Only the best possible lineup scores 100.
+  const share = best > worst ? Math.max(0, (mine - worst) / (best - worst)) : 1;
+  const score = mine >= best - 1e-6 ? 100 : Math.max(0, Math.min(99, Math.round(100 * share)));
   draft = {...draft, stage: 'done', mine, best, worst, score};
   const st = gameStore.get();
   const k = `${D.sport || 'football'}:draft-lineup`;
@@ -2850,9 +2871,9 @@ function renderDraft(box) {
   if (draft.stage === 'setup') {
     const card = el('div', 'card g-setup');
     card.appendChild(el('h2', '', `Draft a starting lineup in ${DRAFT.rounds} rounds`));
-    card.appendChild(el('p', 'desc', `Fill ${lineupText}. Each round you get five players, from different positions where possible and always with at least one top-${DRAFT.top} player. ` +
+    card.appendChild(el('p', 'desc', `Fill ${lineupText}. Each round you get five players from the tier you'd be picking from in a ${DRAFT.teams}-team draft, so they're close in value; the stars go early. ` +
       'Your pick goes into the most specific open spot, and once no open spot fits a position, it stops showing up.'));
-    card.appendChild(el('p', 'desc', 'Your score compares your lineup with the best and worst you could have built from the same offers: 100 is the best possible team.'));
+    card.appendChild(el('p', 'desc', `You get ${DRAFT.respins === 1 ? 'one respin' : DRAFT.respins + ' respins'} per draft to swap a round's five for new ones. Your score compares your lineup with the best and worst you could have built from the sets you picked from. 100 is the best possible team.`));
     const row = el('div', 'g-start-row');
     const go = el('button', 'btn g-go', 'Start draft'); go.type = 'button';
     go.disabled = draftOrder().length < 60;
@@ -2866,7 +2887,14 @@ function renderDraft(box) {
   }
   if (draft.stage === 'play') {
     const head = el('div', 'd-head');
-    head.appendChild(el('div', 'g-verdict', `Round ${draft.round} of ${DRAFT.rounds}`));
+    const top = el('div', 'd-top');
+    top.appendChild(el('div', 'g-verdict', `Round ${draft.round} of ${DRAFT.rounds}`));
+    const spin = el('button', 'btn ghost d-respin', draft.respinsLeft > 0 ? `↻ Respin (${draft.respinsLeft} left)` : 'Respin used');
+    spin.type = 'button'; spin.disabled = draft.respinsLeft <= 0;
+    spin.title = 'Swap these five for a new set from the same tier';
+    spin.addEventListener('click', draftRespin);
+    top.appendChild(spin);
+    head.appendChild(top);
     const prog = el('div', 'd-prog'); const fill = el('span'); fill.style.width = `${100 * (draft.round - 1) / DRAFT.rounds}%`; prog.appendChild(fill);
     head.appendChild(prog);
     head.appendChild(draftNeeds());
