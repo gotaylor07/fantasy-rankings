@@ -372,6 +372,14 @@ dialog.tsched{width:min(640px,calc(100vw - 24px));max-height:calc(100vh - 32px)}
 .st-pic img{width:84px;height:auto}
 .st-pos{font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--accent)}
 .st-name{font-weight:700}
+tr.playing td{background:color-mix(in srgb,#ef4444 9%,var(--card))}
+tr.playing .ptag::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:#ef4444;animation:sl-pulse 1.6s infinite}
+tr.playing .ptag .plink{background:color-mix(in srgb,#ef4444 16%,transparent);border-radius:6px;padding:0 5px;margin:0 -2px}
+.pl-live{margin:14px 0 4px;padding:12px 14px;border-radius:14px;border:1px solid color-mix(in srgb,#ef4444 50%,var(--line));background:color-mix(in srgb,#ef4444 8%,var(--card));animation:g-pop .3s ease-out}
+.pl-live-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px}
+.pl-live-top b{color:#ef4444;letter-spacing:.06em}
+.pl-live-row{display:flex;align-items:center;gap:14px;margin-top:6px}
+.pl-live-pts{font-size:34px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 @keyframes g-fall{to{transform:translateY(105vh) rotate(720deg);opacity:.9}}
 @media (prefers-reduced-motion: reduce){.g-enter,.g-slot.filled{animation:none}}
 .mu-mini{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -1081,7 +1089,7 @@ function renderPlayerBodyNba(sid, p) {
 }
 
 function renderPlayerBody(sid, p) {
-  if (NBA) return renderPlayerBodyNba(sid, p);
+  if (NBA) { renderPlayerBodyNba(sid, p); paintPlayerLive(); return; }
   const body = document.getElementById('pl-body');
   body.replaceChildren();
   const H = window.PLAYER_HISTORY;
@@ -1106,6 +1114,7 @@ function renderPlayerBody(sid, p) {
   }
   if (historyState === 'loading') body.appendChild(el('p', 'note', 'Loading past seasons…'));
   if (historyState === 'missing') body.appendChild(el('p', 'note', 'Past seasons aren\'t available: run update.py to build them.'));
+  paintPlayerLive();
 }
 
 function openPlayer(sid, push = true) {
@@ -1118,6 +1127,7 @@ function openPlayer(sid, push = true) {
   if (!dlg.open) dlg.showModal();
   if (push) setHash({player: sid});
   if (!NBA) loadHistory(() => { if (dlg.open && readHash().player === sid) renderPlayerBody(sid, p); });
+  playerLiveLoop(sid);
 }
 
 document.getElementById('plog').addEventListener('click', e => { if (e.target.id === 'plog') e.target.close(); });
@@ -2567,7 +2577,8 @@ function renderMatchupTab(ctx, box) {
     badge.appendChild(el('span', 'mu-live', ''));
     badge.firstChild.appendChild(el('span', 'sl-live-dot', ''));
     badge.firstChild.appendChild(document.createTextNode('LIVE'));
-    const how = leagueLive.unsupported ? ' · live league scores aren\'t available for this league here, so these use the last update'
+    const canRefresh = /^(sleeper|espn):/.test(ctx.active.key);   // demo and private ESPN leagues can't be refreshed from the page
+    const how = !canRefresh ? ' · live league scores aren\'t available for this league here, so these use the last update'
       : leagueLive.at ? ` · scores updated ${leagueLive.at.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit', second: '2-digit'})}, refreshing every minute` : ' · fetching live scores…';
     badge.appendChild(document.createTextNode(how));
     s.appendChild(badge);
@@ -2607,11 +2618,11 @@ function renderMatchupTab(ctx, box) {
     let rows, head;
     if (NBA) {
       head = [['Player', 'l'], 'Games', 'Starts', 'Proj'];
-      rows = lu.rows.map(r => { const tr = el('tr'); tr.appendChild(playerCell(r.pl)); tr.appendChild(td(r.games)); tr.appendChild(td(r.starts)); tr.appendChild(td(fmt(r.pts * A.scale), 'avg')); return tr; });
+      rows = lu.rows.map(r => { const tr = el('tr', playingNow(r.pl) ? 'playing' : ''); tr.appendChild(playerCell(r.pl)); tr.appendChild(td(r.games)); tr.appendChild(td(r.starts)); tr.appendChild(td(fmt(r.pts * A.scale), 'avg')); return tr; });
     } else if (lu.live) {
       head = [['Slot', 'l'], ['Player', 'l'], ['Game', 'l'], 'Pts', 'Left'];
       rows = lu.rows.map(r => {
-        const tr = el('tr');
+        const tr = el('tr', playingNow(r.pl) ? 'playing' : '');
         tr.appendChild(td(SLOT_LABEL[r.slot] || r.slot, 'l muted'));
         tr.appendChild(playerCell(r.pl, w));
         tr.appendChild(td(r.status || '', 'l muted'));
@@ -2621,7 +2632,7 @@ function renderMatchupTab(ctx, box) {
       });
     } else {
       head = [['Slot', 'l'], ['Player', 'l'], 'Proj'];
-      rows = lu.rows.map(r => { const tr = el('tr'); tr.appendChild(td(SLOT_LABEL[r.slot] || r.slot, 'l muted')); tr.appendChild(playerCell(r.pl, w)); tr.appendChild(td(fmt(r.pts * A.scale), 'avg')); return tr; });
+      rows = lu.rows.map(r => { const tr = el('tr', playingNow(r.pl) ? 'playing' : ''); tr.appendChild(td(SLOT_LABEL[r.slot] || r.slot, 'l muted')); tr.appendChild(playerCell(r.pl, w)); tr.appendChild(td(fmt(r.pts * A.scale), 'avg')); return tr; });
     }
     const foot = el('tr');
     foot.appendChild(td('Total', 'l'));
@@ -2638,6 +2649,7 @@ function renderMatchupTab(ctx, box) {
     grid.appendChild(col);
   });
   s.appendChild(grid);
+  if (slate.events.some(e => e.state === 'in')) s.appendChild(el('p', 'note', 'Highlighted players are in a game right now.'));
   s.appendChild(el('p', 'note', o.started ? 'Lineups are what each manager has set. "Left" is the projection for the part of each game still to play.'
     : 'Both sides use their best projected lineup, which may differ from what each manager has set.'));
 }
@@ -3553,7 +3565,10 @@ function updateTeamStatus() {
   Object.keys(TEAM_LIVE).forEach(k => delete TEAM_LIVE[k]);
   slate.events.forEach(ev => {
     const s = {state: ev.state, left: gameLeft(ev), detail: ev.state === 'pre' ? `${new Date(ev.date).toLocaleDateString([], {weekday: 'short'})} ${timeLabel(ev.date)}` : ev.detail};
-    [ev.home.abbr, ev.away.abbr].forEach(t => { TEAM_LIVE[NBA ? `${t}|${etDate(ev.date)}` : t] = s; });
+    [ev.home.abbr, ev.away.abbr].forEach(t => {
+      const k = NBA ? `${t}|${etDate(ev.date)}` : t;
+      if (!TEAM_LIVE[k] || TEAM_LIVE[k].state !== 'in') TEAM_LIVE[k] = s;   // a game in progress wins
+    });
   });
 }
 const teamLive = (team, date) => TEAM_LIVE[NBA ? `${team}|${date}` : team];
@@ -4304,6 +4319,79 @@ async function openTeamSchedule(teamId, fallback = {}, tab = 'schedule') {
 }
 
 document.getElementById('tsched').addEventListener('click', e => { if (e.target.id === 'tsched') e.target.close(); });
+
+// ---------------------------------------------------------------- live: who's playing, and a player's points so far
+
+/** Is this player's real game in progress right now? (from the slate's live scoreboard) */
+function playingNow(pl) {
+  if (!pl) return false;
+  const team = (P[pl.sid] || {}).t || pl.team;
+  const s = NBA ? teamLive(team, TODAY) : teamLive(team);
+  return !!s && s.state === 'in';
+}
+
+const plLive = {sid: null, timer: null, data: null};
+
+/** This player's fantasy points so far in a game in progress, from ESPN's live box score. */
+async function playerLiveLine(sid) {
+  const p = P[sid];
+  if (!p) return null;
+  const ev = slate.events.find(e => e.state === 'in' && (e.home.abbr === p.t || e.away.abbr === p.t));
+  if (!ev) return null;
+  const s = await getJSON(`https://site.api.espn.com/apis/site/v2/sports/${SLATE_PATH}/summary?event=${ev.id}`);
+  const tm = ((s.boxscore || {}).players || []).find(x => abbrOf((x.team || {}).abbreviation) === p.t);
+  const opp = ev.home.abbr === p.t ? ev.away.abbr : ev.home.abbr;
+  const out = {opp, detail: ev.detail, score: `${ev.away.abbr} ${ev.away.score} – ${ev.home.abbr} ${ev.home.score}`, pts: 0, text: 'No stats yet'};
+  if (!tm) return out;
+  if (NBA) {
+    const g = (tm.statistics || [])[0];
+    const a = g && (g.athletes || []).find(x => normName(x.athlete.displayName) === normName(p.n));
+    if (a && (a.stats || []).length) {
+      const line = gvNbaLine(g, a.stats);
+      out.pts = nbaPoints(line, D.scoring);
+      out.text = `${line[FI.pts]} pts · ${line[FI.reb]} reb · ${line[FI.ast]} ast · ${line[FI.stl]} stl · ${line[FI.blk]} blk · ${Math.round(line[FI.min])} min`;
+    } else if (a && a.didNotPlay) out.text = 'Not playing';
+  } else {
+    const r = gvFootballFantasy(tm).find(x => normName(x.name) === normName(p.n));
+    if (r) { out.pts = r.pts; out.text = r.parts.join(' · '); }
+  }
+  return out;
+}
+
+function paintPlayerLive() {
+  const body = document.getElementById('pl-body');
+  const old = document.getElementById('pl-live');
+  if (old) old.remove();
+  const d = plLive.data;
+  if (!d || playerSeason !== String(D.season)) return;
+  const box = el('div', 'pl-live'); box.id = 'pl-live';
+  const top = el('div', 'pl-live-top');
+  top.appendChild(el('span', 'sl-live-dot', ''));
+  top.appendChild(el('b', '', 'LIVE'));
+  top.appendChild(el('span', 'desc', ` vs ${d.opp} · ${d.detail} · ${d.score}`));
+  box.appendChild(top);
+  const row = el('div', 'pl-live-row');
+  row.appendChild(el('div', 'pl-live-pts', fmt(d.pts)));
+  const info = el('div');
+  info.appendChild(el('div', 'desc', NBA ? 'fantasy points so far (ESPN standard)' : 'PPR points so far'));
+  info.appendChild(el('div', '', d.text));
+  row.appendChild(info);
+  box.appendChild(row);
+  body.prepend(box);
+}
+
+async function playerLiveLoop(sid) {
+  clearTimeout(plLive.timer);
+  if (plLive.sid !== sid) { plLive.sid = sid; plLive.data = null; }
+  const dlg = document.getElementById('plog');
+  if (!dlg.open || readHash().player !== sid) return;
+  try { plLive.data = await playerLiveLine(sid); } catch (e) { /* keep the last numbers */ }
+  if (!dlg.open || plLive.sid !== sid) return;
+  paintPlayerLive();
+  if (plLive.data) plLive.timer = setTimeout(() => playerLiveLoop(sid), 30000);
+}
+
+document.getElementById('plog').addEventListener('close', () => { clearTimeout(plLive.timer); plLive.sid = null; plLive.data = null; });
 
 // ---------------------------------------------------------------- live fantasy matchups
 
