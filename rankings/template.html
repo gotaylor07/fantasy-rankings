@@ -359,6 +359,16 @@ dialog.tsched{width:min(640px,calc(100vw - 24px));max-height:calc(100vh - 32px)}
 .ts-res{display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .ts-wl{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;font-size:12px;font-weight:800;color:#fff}
 .ts-wl.w{background:var(--good)}.ts-wl.l{background:var(--bad)}.ts-wl.t{background:var(--muted)}
+.ts-tabs{margin-bottom:12px}
+.dc-title{margin:16px 0 6px}
+.dc-name{display:inline-flex;align-items:center;gap:6px}
+.dc-name .badge{margin-left:0}
+.st-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:10px 0}
+.st-card{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;padding:12px 10px;border-radius:14px;border:1px solid var(--line);background:var(--card);box-shadow:var(--shadow)}
+.st-pic{width:84px;height:62px;overflow:hidden;display:grid;place-items:end center}
+.st-pic img{width:84px;height:auto}
+.st-pos{font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--accent)}
+.st-name{font-weight:700}
 @keyframes g-fall{to{transform:translateY(105vh) rotate(720deg);opacity:.9}}
 @media (prefers-reduced-motion: reduce){.g-enter,.g-slot.filled{animation:none}}
 .mu-mini{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -4111,7 +4121,87 @@ function teamButton(t) {
   return b;
 }
 
-async function openTeamSchedule(teamId, fallback = {}) {
+// Football depth chart (saved by update.py) and basketball starters (from the team's last game).
+const DEPTH_ORDER = ['QB', 'RB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT'];
+const DEPTH_POS = {QB: 'QB', RB: 'RB', FB: 'RB', WR: 'WR', TE: 'TE', PK: 'K'};
+
+function depthName(name, depthPos, inj) {
+  const wrap = el('span', 'dc-name');
+  const pos = DEPTH_POS[depthPos];
+  const sid = pos ? PD.keys[normName(name) + '|' + pos] : null;
+  wrap.appendChild(sid && P[sid] ? playerButton(sid, name) : document.createTextNode(name));
+  if (inj) {
+    const short = {Questionable: 'Q', Doubtful: 'D', Out: 'Out', 'Injured Reserve': 'IR', Suspension: 'SUS'}[inj] || inj;
+    wrap.appendChild(el('span', 'badge ' + (inj === 'Questionable' ? 'warn' : 'bad'), short));
+  }
+  return wrap;
+}
+
+function renderDepthChart(box, abbr) {
+  const chart = (D.depth || {})[abbr];
+  if (!chart || !chart.length) { box.appendChild(el('p', 'empty', 'No depth chart saved for this team yet. It updates with each daily build.')); return; }
+  chart.forEach(g => {
+    box.appendChild(el('h3', 'dc-title', `${g.kind}${g.name && g.kind !== 'Special teams' ? ` · ${g.name}` : ''}`));
+    let rows = g.pos.slice();
+    if (g.kind === 'Offense') rows.sort((a, b) => (DEPTH_ORDER.indexOf(a[0]) + 99) % 99 - (DEPTH_ORDER.indexOf(b[0]) + 99) % 99);
+    const depth = Math.min(3, Math.max(...rows.map(r => r[1].length)));
+    box.appendChild(table([['Pos', 'l'], ['Starter', 'l'], ...(depth > 1 ? [['2nd', 'l']] : []), ...(depth > 2 ? [['3rd', 'l']] : [])], rows.map(([pos, players]) => {
+      const tr = el('tr');
+      tr.appendChild(td(pos, 'l muted'));
+      for (let i = 0; i < depth; i++) {
+        const c = td('', 'l' + (i ? ' muted' : ''));
+        if (players[i]) c.appendChild(depthName(players[i][0], pos, players[i][2]));
+        tr.appendChild(c);
+      }
+      return tr;
+    })));
+  });
+  box.appendChild(el('p', 'note', 'From ESPN, updated with each daily build. Injury tags show players listed on the depth chart while hurt.'));
+}
+
+async function renderStarters(box, teamId, events) {
+  // Tonight's starters once a game is under way, otherwise the last finished game's.
+  const stateOf = e => ((((e.competitions || [])[0] || {}).status || {}).type || {}).state;
+  const last = (events || []).filter(e => ['in', 'post'].includes(stateOf(e))).slice(-1)[0];
+  if (!last) { box.appendChild(el('p', 'empty', 'Starters show up after the team\'s first game.')); return; }
+  box.appendChild(el('p', 'empty', 'Loading…'));
+  let s;
+  try { s = await getJSON(`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=${last.id}`); }
+  catch (e) { box.replaceChildren(el('p', 'err', 'Couldn\'t load the last game from ESPN.')); return; }
+  const tm = ((s.boxscore || {}).players || []).find(x => String((x.team || {}).id) === String(teamId));
+  const g = tm && (tm.statistics || [])[0];
+  box.replaceChildren();
+  if (!g) { box.appendChild(el('p', 'empty', 'No box score for the last game.')); return; }
+  const at = l => (g.labels || []).indexOf(l);
+  const opp = (((last.competitions || [])[0] || {}).competitors || []).find(c => String((c.team || {}).id) !== String(teamId)) || {};
+  box.appendChild(el('p', 'desc', `Starting lineup from ${stateOf(last) === 'in' ? 'tonight\'s game (live)' : 'the last game'}: ${new Date(last.date).toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'})} vs ${(opp.team || {}).displayName || 'opponent'}.`));
+  const starters = (g.athletes || []).filter(a => a.starter);
+  const order = ['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C'];
+  starters.sort((a, b) => order.indexOf((a.athlete.position || {}).abbreviation) - order.indexOf((b.athlete.position || {}).abbreviation));
+  const cards = el('div', 'st-grid');
+  starters.forEach(a => {
+    const sid = PD.keys[normName(a.athlete.displayName)];
+    const card = el('div', 'st-card');
+    const pic = el('div', 'st-pic');
+    const img = el('img'); img.alt = ''; img.src = `https://a.espncdn.com/i/headshots/nba/players/full/${a.athlete.id}.png`;
+    img.addEventListener('error', () => img.remove());
+    pic.appendChild(img);
+    card.appendChild(pic);
+    card.appendChild(el('div', 'st-pos', (a.athlete.position || {}).abbreviation || ''));
+    const nm = el('div', 'st-name'); nm.appendChild(sid && P[sid] ? playerButton(sid, a.athlete.displayName) : document.createTextNode(a.athlete.displayName));
+    card.appendChild(nm);
+    const v = l => (at(l) >= 0 ? a.stats[at(l)] : '–');
+    card.appendChild(el('div', 'desc', `${v('PTS')} pts · ${v('REB')} reb · ${v('AST')} ast · ${v('MIN')} min`));
+    if (sid && P[sid] && P[sid].i) { const b = injuryBadge(P[sid].i, sid); if (b) card.appendChild(b); }
+    cards.appendChild(card);
+  });
+  box.appendChild(cards);
+  const bench = (g.athletes || []).filter(a => !a.starter && !a.didNotPlay && (a.stats || []).length);
+  if (bench.length) box.appendChild(el('p', 'note', 'Off the bench: ' + bench.map(a => `${a.athlete.displayName} (${a.stats[at('MIN')] || 0} min)`).join(', ')));
+}
+
+async function openTeamSchedule(teamId, fallback = {}, tab = 'schedule') {
+  openTeamSchedule.tab = tab;
   const dlg = document.getElementById('tsched');
   const head = document.getElementById('ts-head'), body = document.getElementById('ts-body');
   head.replaceChildren(); body.replaceChildren(el('p', 'empty', 'Loading schedule…'));
@@ -4139,6 +4229,22 @@ async function openTeamSchedule(teamId, fallback = {}) {
   const tm = d.team || {};
   drawHead(tm.displayName || fallback.name, ((tm.logo) || ((tm.logos || [])[0] || {}).href) || fallback.logo, tm.recordSummary || fallback.record, abbrOf(tm.abbreviation) || fallback.abbr);
   body.replaceChildren();
+  const abbr = abbrOf(tm.abbreviation) || fallback.abbr;
+  const bar = el('div', 'tabs ts-tabs');
+  const pane = el('div');
+  body.append(bar, pane);
+  const second = NBA ? ['starters', 'Starters'] : ['depth', 'Depth chart'];
+  const showTab = k => {
+    tabs(bar, [['schedule', 'Schedule'], second], k, showTab);
+    pane.replaceChildren();
+    if (k === 'depth') renderDepthChart(pane, abbr);
+    else if (k === 'starters') renderStarters(pane, teamId, d.events);
+    else {
+      pane.append(list, el('p', 'note', 'Click a game for its plays and box score.'));
+      const now = list.querySelector('.ts-row.in, .ts-row.pre');
+      if (now) setTimeout(() => now.scrollIntoView({block: 'center'}), 0);
+    }
+  };
   const list = el('div', 'ts-list');
   let lastGroup = null;
   (d.events || []).forEach(e => {
@@ -4175,10 +4281,7 @@ async function openTeamSchedule(teamId, fallback = {}) {
     list.appendChild(row);
   });
   if (!list.children.length) list.appendChild(el('p', 'empty', 'No games found.'));
-  body.appendChild(list);
-  body.appendChild(el('p', 'note', 'Click a game for its plays and box score.'));
-  const now = list.querySelector('.ts-row.in, .ts-row.pre');
-  if (now) setTimeout(() => now.scrollIntoView({block: 'center'}), 0);
+  showTab(openTeamSchedule.tab || 'schedule');
 }
 
 document.getElementById('tsched').addEventListener('click', e => { if (e.target.id === 'tsched') e.target.close(); });

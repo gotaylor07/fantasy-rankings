@@ -21,7 +21,7 @@ from zoneinfo import ZoneInfo
 # Apple's bundled Python links LibreSSL; urllib3 warns about it on every run but works.
 warnings.filterwarnings("ignore", message="urllib3 v2 only supports OpenSSL")
 
-from rankings import demo, history, leagues, players, site, slate
+from rankings import demo, depth, history, leagues, players, site, slate
 from rankings.aggregate import aggregate, upcoming_week
 from rankings.sources import espn_injuries, espn_ownership, sleeper_players, source_registry
 
@@ -186,9 +186,18 @@ def run_football(args, today: date) -> int:
         except Exception as exc:  # the page still loads scores live
             print(f"  FAIL slate    ESPN {type(exc).__name__}: {exc}", file=sys.stderr)
 
+    depth_data = {}
+    if not args.demo:
+        try:
+            depth_data = depth.build()
+            print(f"  ok   depth    ESPN          {len(depth_data)} teams")
+        except Exception as exc:
+            print(f"  FAIL depth    ESPN {type(exc).__name__}: {exc}", file=sys.stderr)
+
     data = {
         "sport": "football",
         "slate": slate_data,
+        "depth": depth_data,
         "links": DEMO_LINKS if args.demo else LINKS,
         "generated": datetime.now().astimezone().isoformat(timespec="seconds"),
         "season": season,
