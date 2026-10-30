@@ -258,6 +258,48 @@ button.g-slot:hover,button.g-slot:focus-visible{border-color:var(--accent);backg
 .sl-wp span{display:block;height:100%;background:var(--accent)}
 .sl-lead{font-size:12px}
 .mu-live{display:inline-flex;align-items:center;font-size:12px;font-weight:700;color:#ef4444;margin-left:8px}
+.sl-game{cursor:pointer;transition:transform .12s,border-color .15s}
+.sl-game:hover,.sl-game:focus-visible{transform:translateY(-2px);border-color:var(--accent);outline:none}
+.sl-tk-card.clickable{cursor:pointer}
+dialog.gview{width:min(760px,calc(100vw - 24px));height:min(900px,calc(100vh - 32px));display:none;flex-direction:column}
+dialog.gview[open]{display:flex}
+.gv-head{position:relative;padding:16px 18px 0;border-bottom:1px solid var(--line);flex:none}
+.gv-close{position:absolute;top:12px;right:12px}
+.gv-scoreboard{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding-right:36px}
+.gv-side{display:flex;align-items:center;gap:10px;min-width:0}
+.gv-side.right{flex-direction:row-reverse;text-align:right}
+.gv-big-logo{width:46px;height:46px;object-fit:contain;flex:none}
+.gv-team-name{font-weight:700}
+.gv-big-score{font-size:34px;font-weight:800;margin:0 6px;font-variant-numeric:tabular-nums}
+.gv-mid{text-align:center;font-size:13px;white-space:nowrap}
+.gv-tabs{margin:12px 0 0}
+.gv-tabs .tab{border-radius:10px 10px 0 0;border-bottom:0}
+.gv-body-wrap{flex:1;overflow:auto;padding:14px 18px 18px;position:relative}
+.gv-feed{display:flex;flex-direction:column;gap:8px}
+.gv-play{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:14px;background:var(--card);border:1px solid var(--line);
+  border-left:4px solid color-mix(in srgb,var(--tc,var(--line)) 80%,transparent)}
+.gv-play.big{background:linear-gradient(110deg,color-mix(in srgb,var(--tc,var(--accent)) 18%,var(--card)),var(--card) 70%)}
+.gv-play.score{border-color:color-mix(in srgb,var(--tc,var(--accent)) 55%,var(--line))}
+.gv-in{animation:gv-drop .45s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes gv-drop{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+.gv-logo{flex:none;width:28px;height:28px}
+.gv-logo img{width:28px;height:28px;object-fit:contain}
+.gv-body{flex:1;min-width:0}
+.gv-meta{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.gv-tag{font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);font-size:11px}
+.gv-tag.bad{color:var(--bad)}
+.gv-text{margin-top:2px;font-size:14px}
+.gv-play.big .gv-text{font-weight:600}
+.gv-score{flex:none;font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.gv-score.on{color:var(--text);font-weight:700}
+.gv-drive{padding:8px 12px;border-radius:10px;font-size:13px;background:color-mix(in srgb,var(--tc,var(--accent)) 12%,var(--card-2));border:1px dashed color-mix(in srgb,var(--tc,var(--accent)) 45%,var(--line))}
+.gv-new[hidden]{display:none}
+.gv-new{position:sticky;top:0;z-index:2;display:block;margin:0 auto 8px;border:0;border-radius:999px;padding:7px 14px;font:inherit;font-weight:700;color:var(--accent-text);background:var(--accent);box-shadow:var(--shadow);cursor:pointer}
+.gv-box-head{display:flex;align-items:center;gap:10px;margin:14px 0 6px}
+.gv-box-head img{width:30px;height:30px;object-fit:contain}
+.gv-box-head h3{margin:0}
+.gv-group{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:12px 0 4px}
+tr.gv-sub td{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--card-2)}
 @keyframes g-fall{to{transform:translateY(105vh) rotate(720deg);opacity:.9}}
 @media (prefers-reduced-motion: reduce){.g-enter,.g-slot.filled{animation:none}}
 .mu-mini{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -280,7 +322,7 @@ td.cell-start{background:color-mix(in srgb,var(--accent) 12%,transparent);font-w
 td.cell-sit{color:var(--muted)}
 td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
 @media (max-width:900px){.d-offer{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media (max-width:640px){.d-offer{grid-template-columns:repeat(2,minmax(0,1fr))}.g-stage{grid-template-columns:1fr}.g-left{position:static}.g-card.big .pl-photo{width:110px;height:110px}.mu-score{grid-template-columns:1fr}.mu-side.right{text-align:left}.mu-side.right .mu-name{justify-content:flex-start}.mu-pts{font-size:28px}.hero{flex-wrap:wrap}.sport{margin-left:0}.connect,.trade-grid{grid-template-columns:1fr}th,td{padding:8px 9px}.pl-photo{width:76px;height:76px}.dlg-head{flex-wrap:wrap}.nav{display:flex}.nav button{flex:1}h1{font-size:20px}}
+@media (max-width:640px){.gv-big-score{font-size:24px}.gv-big-logo{width:34px;height:34px}.gv-team-name{font-size:13px}.d-offer{grid-template-columns:repeat(2,minmax(0,1fr))}.g-stage{grid-template-columns:1fr}.g-left{position:static}.g-card.big .pl-photo{width:110px;height:110px}.mu-score{grid-template-columns:1fr}.mu-side.right{text-align:left}.mu-side.right .mu-name{justify-content:flex-start}.mu-pts{font-size:28px}.hero{flex-wrap:wrap}.sport{margin-left:0}.connect,.trade-grid{grid-template-columns:1fr}th,td{padding:8px 9px}.pl-photo{width:76px;height:76px}.dlg-head{flex-wrap:wrap}.nav{display:flex}.nav button{flex:1}h1{font-size:20px}}
 </style>
 </head>
 <body>
@@ -355,6 +397,11 @@ td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
   </section>
   <p class="foot" id="gen"></p>
 </div>
+
+<dialog id="gview" class="gview" aria-label="Game">
+  <div class="gv-head" id="gv-head"></div>
+  <div class="gv-body-wrap dlg-body" id="gv-body"></div>
+</dialog>
 
 <dialog id="tview" aria-labelledby="tv-name">
   <div class="dlg-head" id="tv-head"></div>
@@ -3461,7 +3508,7 @@ function highlights() {
     slate.events.filter(e => e.state !== 'pre').forEach(ev => [ev.away, ev.home].forEach(t => {
       if (!t.leader) return;
       const pts = parseInt((t.leader.line.match(/(\d+)\s*PTS/) || [])[1] || '0', 10);
-      out.push({live: ev.state === 'in', pts, kicker: ev.state === 'in' ? 'Live' : 'Top performer', title: t.leader.name, line: t.leader.line,
+      out.push({gid: ev.id, live: ev.state === 'in', pts, kicker: ev.state === 'in' ? 'Live' : 'Top performer', title: t.leader.name, line: t.leader.line,
                 team: t.abbr, game: label(ev), img: `https://a.espncdn.com/i/headshots/nba/players/full/${t.leader.id}.png`});
     }));
     return out.sort((a, b) => (b.live - a.live) || b.pts - a.pts).slice(0, 20);
@@ -3469,7 +3516,7 @@ function highlights() {
   return Object.values(slate.plays).flatMap(g => g.list).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 25).map(p => {
     const ev = byId[p.gid];
     const kicker = p.td ? 'Touchdown' : p.to ? 'Turnover' : `${p.yards}-yard ${/Rush/.test(p.type) ? 'run' : 'play'}`;
-    return {live: ev && ev.state === 'in', kicker, title: p.text.replace(/\s*\(.*?\)\s*/g, ' ').trim(), line: `Q${p.period} ${p.clock || ''}`.trim(),
+    return {gid: p.gid, live: ev && ev.state === 'in', kicker, title: p.text.replace(/\s*\(.*?\)\s*/g, ' ').trim(), line: `Q${p.period} ${p.clock || ''}`.trim(),
             team: p.team, game: ev ? label(ev) : '', img: null};
   });
 }
@@ -3485,6 +3532,7 @@ function paintTicker(box) {
   }
   const it = items[slate.hi % items.length];
   const card = tint(el('div', 'sl-tk-card'), it.team);
+  if (it.gid) { card.classList.add('clickable'); card.addEventListener('click', () => openGame(it.gid)); card.title = 'Open this game'; }
   const pic = el('div', 'sl-tk-pic');
   if (it.img) {
     const img = el('img'); img.alt = ''; img.src = it.img;
@@ -3515,6 +3563,11 @@ const fmtLine = v => (v == null ? '–' : String(v));
 
 function slateCard(ev) {
   const card = el('div', 'sl-game ' + ev.state);
+  card.tabIndex = 0;
+  card.setAttribute('role', 'button');
+  card.setAttribute('aria-label', `${ev.away.name} at ${ev.home.name}: open plays and box score`);
+  card.addEventListener('click', () => openGame(ev.id));
+  card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openGame(ev.id); } });
   const top = el('div', 'sl-status');
   if (ev.state === 'in') { top.appendChild(el('span', 'sl-live-dot', '')); top.appendChild(el('b', '', ev.detail)); }
   else if (ev.state === 'post') top.appendChild(el('b', '', ev.detail || 'Final'));
@@ -3603,8 +3656,248 @@ function renderSlate() {
     slate.events.filter(e => etDate(e.date) === d).forEach(ev => grid.appendChild(slateCard(ev)));
     box.appendChild(grid);
   });
-  box.appendChild(el('p', 'foot', `Scores and play-by-play from ESPN. Lines are ${Object.values(slate.odds)[0] && Object.values(slate.odds)[0].provider || 'sportsbook'} pre-game lines (spread, over/under, moneyline); they aren't updated during games.`));
+  box.appendChild(el('p', 'foot', `Click a game for live plays and the box score. Scores and play-by-play from ESPN. Lines are ${Object.values(slate.odds)[0] && Object.values(slate.odds)[0].provider || 'sportsbook'} pre-game lines (spread, over/under, moneyline); they aren't updated during games.`));
 }
+
+// ---------------------------------------------------------------- weekly slate: game view (live plays + box score)
+//
+// Click a game on the slate to follow it: a play-by-play feed, newest on top, where new plays
+// slide in above the old ones and nothing is removed, plus each team's box score. While the
+// game is live it re-reads ESPN's game summary every 10 seconds.
+
+const gv = {id: null, tab: 'plays', data: null, seen: new Set(), timer: null, newCount: 0, loading: false};
+
+function gvTeams(s) {
+  const comp = ((s.header || {}).competitions || [])[0] || {};
+  const out = {};
+  (comp.competitors || []).forEach(c => {
+    const t = c.team || {};
+    out[t.id] = {id: t.id, abbr: abbrOf(t.abbreviation), name: t.displayName || t.name, logo: ((t.logos || [])[0] || {}).href || t.logo,
+                 score: c.score, side: c.homeAway, record: ((c.record || [])[0] || {}).summary || ((c.records || [])[0] || {}).summary};
+  });
+  return {teams: out, status: (comp.status || {}).type || {}, statusDetail: ((comp.status || {}).type || {}).shortDetail};
+}
+
+/** Every play so far, oldest first, as feed items (football also gets a card when a drive ends). */
+function gvPlays(s, teams) {
+  const items = [];
+  const label = p => `${(p.period || {}).number ? (NBA ? `Q${p.period.number}` : `Q${p.period.number}`) : ''} ${(p.clock || {}).displayValue || ''}`.trim();
+  if (NBA) {
+    (s.plays || []).forEach(p => {
+      items.push({id: p.id, team: teams[(p.team || {}).id], when: label(p), text: p.text, type: (p.type || {}).text,
+                  scoring: p.scoringPlay, value: p.scoreValue, away: p.awayScore, home: p.homeScore, big: p.scoringPlay && p.scoreValue >= 3});
+    });
+    return items;
+  }
+  const drives = ((s.drives || {}).previous || []).map(d => ({d, done: true}));
+  if ((s.drives || {}).current) drives.push({d: s.drives.current, done: false});
+  drives.forEach(({d, done}) => {
+    const team = teams[(d.team || {}).id] || Object.values(teams).find(t => t.abbr === abbrOf((d.team || {}).abbreviation));
+    (d.plays || []).forEach(p => {
+      const type = (p.type || {}).text || '';
+      items.push({id: p.id, team, when: label(p), text: p.text, type, down: (p.start || {}).downDistanceText,
+                  scoring: p.scoringPlay, turnover: p.isTurnover, yards: p.statYardage, away: p.awayScore, home: p.homeScore,
+                  big: p.scoringPlay || p.isTurnover || ((p.statYardage || 0) >= 20 && /Rush|Reception|Touchdown/.test(type))});
+    });
+    if (done && d.displayResult) items.push({id: 'drive-' + d.id, drive: true, team, text: `${team ? team.abbr + ' ' : ''}drive: ${d.displayResult}`, sub: d.description});
+  });
+  return items;
+}
+
+function gvPlayNode(it, teams) {
+  const sides = Object.values(teams);
+  const away = sides.find(t => t.side === 'away') || {}, home = sides.find(t => t.side === 'home') || {};
+  if (it.drive) {
+    const n = tint(el('div', 'gv-drive'), it.team && it.team.abbr);
+    n.appendChild(el('b', '', it.text));
+    if (it.sub) n.appendChild(el('span', 'desc', ' · ' + it.sub));
+    return n;
+  }
+  const n = tint(el('div', 'gv-play' + (it.big ? ' big' : '') + (it.scoring ? ' score' : '')), it.team && it.team.abbr);
+  const logo = el('div', 'gv-logo');
+  if (it.team && it.team.logo) { const img = el('img'); img.alt = ''; img.src = it.team.logo; img.addEventListener('error', () => img.remove()); logo.appendChild(img); }
+  n.appendChild(logo);
+  const body = el('div', 'gv-body');
+  const meta = el('div', 'gv-meta');
+  meta.appendChild(el('span', '', it.when));
+  if (it.down) meta.appendChild(el('span', '', it.down));
+  if (it.scoring) meta.appendChild(el('span', 'gv-tag', NBA ? `+${it.value}` : /Touchdown/.test(it.type) ? 'Touchdown' : /Field Goal/.test(it.type) ? 'Field goal' : 'Score'));
+  else if (it.turnover) meta.appendChild(el('span', 'gv-tag bad', 'Turnover'));
+  else if (it.big && !NBA) meta.appendChild(el('span', 'gv-tag', `${it.yards} yds`));
+  body.appendChild(meta);
+  body.appendChild(el('div', 'gv-text', it.text || it.type || ''));
+  n.appendChild(body);
+  if (it.away != null && it.home != null) n.appendChild(el('div', 'gv-score' + (it.scoring ? ' on' : ''), `${away.abbr || ''} ${it.away} – ${it.home} ${home.abbr || ''}`));
+  return n;
+}
+
+/** Link a box-score name to the site's player popup when the player is on the site. */
+function gvPlayerLink(name, group) {
+  let sid = null;
+  if (NBA) sid = PD.keys[normName(name)];
+  else {
+    const order = {passing: ['QB'], rushing: ['RB', 'QB', 'WR'], receiving: ['WR', 'TE', 'RB'], kicking: ['K']}[group] || ['QB', 'RB', 'WR', 'TE', 'K'];
+    for (const pos of order) { sid = PD.keys[normName(name) + '|' + pos]; if (sid) break; }
+  }
+  return sid && P[sid] ? playerButton(sid, name) : document.createTextNode(name);
+}
+
+function gvBox(s, box) {
+  const teams = (s.boxscore || {}).players || [];
+  if (!teams.length) { box.appendChild(el('p', 'empty', 'Player stats show up once the game starts.')); return; }
+  teams.forEach(tm => {
+    const t = tm.team || {};
+    const head = tint(el('div', 'gv-box-head'), abbrOf(t.abbreviation));
+    const logo = ((t.logos || [])[0] || {}).href || t.logo;
+    if (logo) { const img = el('img'); img.alt = ''; img.src = logo; head.appendChild(img); }
+    head.appendChild(el('h3', '', t.displayName || t.abbreviation));
+    box.appendChild(head);
+    (tm.statistics || []).forEach(g => {
+      const athletes = (g.athletes || []).filter(a => !a.didNotPlay && (a.stats || []).length);
+      if (!athletes.length) return;
+      if (!NBA) box.appendChild(el('div', 'gv-group', (g.text || g.name || '').replace(/^\w/, c => c.toUpperCase())));
+      const rows = [];
+      const addRows = (list, label) => {
+        if (label && list.length) { const tr = el('tr', 'gv-sub'); const c = td(label, 'l'); c.colSpan = (g.labels || []).length + 1; tr.appendChild(c); rows.push(tr); }
+        list.forEach(a => {
+          const tr = el('tr');
+          const c = td('', 'l');
+          c.appendChild(gvPlayerLink(a.athlete.displayName, g.name));
+          const pos = (a.athlete.position || {}).abbreviation;
+          if (pos) c.appendChild(el('span', 'muted', ' ' + pos));
+          tr.appendChild(c);
+          a.stats.forEach(v => tr.appendChild(td(v)));
+          rows.push(tr);
+        });
+      };
+      if (NBA) { addRows(athletes.filter(a => a.starter), 'Starters'); addRows(athletes.filter(a => !a.starter), 'Bench'); }
+      else addRows(athletes);
+      let foot = null;
+      if (g.totals && g.totals.some(Boolean)) { foot = el('tr'); foot.appendChild(td('Team', 'l')); g.totals.forEach(v => foot.appendChild(td(v))); }
+      box.appendChild(table([['Player', 'l'], ...(g.labels || [])], rows, foot));
+    });
+  });
+}
+
+function gvHeader(s) {
+  const {teams, status, statusDetail} = gvTeams(s);
+  const head = document.getElementById('gv-head');
+  head.replaceChildren();
+  const sides = Object.values(teams).sort((a, b) => (a.side === 'away' ? -1 : 1));
+  const sb = el('div', 'gv-scoreboard');
+  sides.forEach((t, i) => {
+    const side = tint(el('div', 'gv-side' + (i ? ' right' : '')), t.abbr);
+    if (t.logo) { const img = el('img', 'gv-big-logo'); img.alt = ''; img.src = t.logo; side.appendChild(img); }
+    const nm = el('div');
+    nm.appendChild(el('div', 'gv-team-name', t.name));
+    if (t.record) nm.appendChild(el('div', 'desc', t.record));
+    side.appendChild(nm);
+    side.appendChild(el('div', 'gv-big-score', status.state === 'pre' ? '' : String(t.score ?? '')));
+    sb.appendChild(side);
+    if (!i) {
+      const mid = el('div', 'gv-mid');
+      if (status.state === 'in') mid.appendChild(el('span', 'sl-live-dot', ''));
+      mid.appendChild(el('b', '', statusDetail || ''));
+      sb.appendChild(mid);
+    }
+  });
+  head.appendChild(sb);
+  const wp = (s.winprobability || []).slice(-1)[0];
+  if (!NBA && wp && status.state === 'in') {
+    const home = sides.find(t => t.side === 'home') || {}, away = sides.find(t => t.side === 'away') || {};
+    const bar = el('div', 'sl-wp'); const f = el('span'); f.style.width = `${Math.round(100 * (1 - wp.homeWinPercentage))}%`; bar.appendChild(f);
+    head.appendChild(bar);
+    head.appendChild(el('div', 'desc', `Win chance: ${away.abbr} ${Math.round(100 * (1 - wp.homeWinPercentage))}% · ${home.abbr} ${Math.round(100 * wp.homeWinPercentage)}%`));
+  }
+  const close = el('button', 'close gv-close', '×'); close.type = 'button'; close.setAttribute('aria-label', 'Close');
+  close.addEventListener('click', () => document.getElementById('gview').close());
+  head.appendChild(close);
+  const bar = el('div', 'tabs gv-tabs');
+  tabs(bar, [['plays', 'Live plays'], ['box', 'Box score']], gv.tab, v => { gv.tab = v; gvRender(true); });
+  head.appendChild(bar);
+  return {teams, status};
+}
+
+/** Draw the game view. Plays are prepended as they arrive, so the feed keeps everything and your place in it. */
+function gvRender(full) {
+  const s = gv.data;
+  const body = document.getElementById('gv-body');
+  if (!s) { body.replaceChildren(el('p', 'empty', 'Loading game…')); return; }
+  const {teams, status} = gvHeader(s);
+  if (gv.tab === 'box') { body.replaceChildren(); gvBox(s, body); return; }
+  let feed = document.getElementById('gv-feed');
+  if (full || !feed) {
+    body.replaceChildren();
+    gv.seen = new Set();
+    const pill = el('button', 'gv-new', ''); pill.type = 'button'; pill.id = 'gv-new'; pill.hidden = true;
+    pill.addEventListener('click', () => { body.scrollTo({top: 0, behavior: 'smooth'}); });
+    body.appendChild(pill);
+    feed = el('div', 'gv-feed'); feed.id = 'gv-feed';
+    body.appendChild(feed);
+  }
+  const items = gvPlays(s, teams);
+  const fresh = items.filter(it => !gv.seen.has(it.id));
+  if (!items.length && !feed.children.length) {
+    const ev = slate.events.find(e => e.id === gv.id);
+    feed.appendChild(el('p', 'empty', status.state === 'pre'
+      ? `${NBA ? 'Tip-off' : 'Kickoff'} ${ev ? new Date(ev.date).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'}) : 'soon'}. Plays will appear here live.`
+      : 'No plays yet.'));
+    return;
+  }
+  if (fresh.length) {
+    const empty = feed.querySelector('.empty'); if (empty) empty.remove();
+    const before = body.scrollHeight, scrolled = body.scrollTop > 60;
+    fresh.forEach(it => {   // oldest first, each new one goes on top
+      gv.seen.add(it.id);
+      const node = gvPlayNode(it, teams);
+      if (!full) node.classList.add('gv-in');
+      feed.prepend(node);
+    });
+    if (scrolled && !full) {
+      body.scrollTop += body.scrollHeight - before;   // keep your place while new plays land above
+      gv.newCount += fresh.length;
+      const pill = document.getElementById('gv-new');
+      pill.textContent = `↑ ${gv.newCount} new play${gv.newCount === 1 ? '' : 's'}`;
+      pill.hidden = false;
+    }
+  }
+}
+
+async function gvLoad() {
+  if (gv.loading || !gv.id || !document.getElementById('gview').open) return;   // a refresh due as the window closes does nothing
+  gv.loading = true;
+  try {
+    const id = gv.id;
+    const s = await getJSON(`https://site.api.espn.com/apis/site/v2/sports/${SLATE_PATH}/summary?event=${id}`);
+    if (gv.id !== id) return;
+    const first = !gv.data;
+    gv.data = s;
+    gvRender(first);
+    const state = (gvTeams(s).status || {}).state;
+    clearTimeout(gv.timer);
+    if (state !== 'post' && document.getElementById('gview').open) gv.timer = setTimeout(gvLoad, state === 'in' ? 10000 : 60000);
+  } catch (e) {
+    if (!gv.data) document.getElementById('gv-body').replaceChildren(el('p', 'err', 'Couldn\'t load this game from ESPN. Try again in a moment.'));
+    clearTimeout(gv.timer);
+    if (document.getElementById('gview').open) gv.timer = setTimeout(gvLoad, 15000);
+  } finally { gv.loading = false; }
+}
+
+function openGame(id) {
+  const dlg = document.getElementById('gview');
+  clearTimeout(gv.timer);
+  Object.assign(gv, {id: String(id), tab: 'plays', data: null, seen: new Set(), newCount: 0});
+  document.getElementById('gv-head').replaceChildren();
+  gvRender(true);
+  if (!dlg.open) dlg.showModal();
+  gvLoad();
+}
+
+document.getElementById('gview').addEventListener('close', () => { clearTimeout(gv.timer); gv.id = null; });
+document.getElementById('gview').addEventListener('click', e => { if (e.target.id === 'gview') e.target.close(); });
+document.getElementById('gv-body').addEventListener('scroll', e => {
+  if (e.target.scrollTop < 30) { gv.newCount = 0; const p = document.getElementById('gv-new'); if (p) p.hidden = true; }
+});
 
 // ---------------------------------------------------------------- live fantasy matchups
 
