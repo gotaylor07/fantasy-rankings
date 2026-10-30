@@ -83,6 +83,7 @@ h3{font-size:14px;margin:16px 0 6px}
 .nav{display:inline-flex;gap:4px;padding:4px;margin-bottom:18px;background:var(--card);border:1px solid var(--line);border-radius:999px;box-shadow:var(--shadow)}
 .nav button{border:0;background:none;color:var(--muted);font:inherit;font-weight:600;padding:8px 18px;border-radius:999px;cursor:pointer}
 .nav button:hover{color:var(--text)}
+.nav-short{display:none}
 .nav button[aria-selected=true]{color:var(--accent-text);background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 70%,var(--accent-2)))}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 .tab{border:1px solid var(--line);background:var(--card);color:var(--text);padding:6px 14px;border-radius:999px;cursor:pointer;font:inherit;font-size:14px;font-weight:500;transition:background .15s,border-color .15s}
@@ -406,7 +407,7 @@ td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
 .gv-play{flex-wrap:wrap}
 .gv-play.score .gv-score{display:block;flex-basis:100%;padding-left:36px}
 }
-@media (max-width:640px){.gv-big-score{font-size:26px}.gv-big-logo{width:32px;height:32px}.gv-team-name{font-size:14px}.d-offer{grid-template-columns:repeat(2,minmax(0,1fr))}.g-stage{grid-template-columns:1fr}.g-left{position:static}.g-card.big .pl-photo{width:110px;height:110px}.mu-score{grid-template-columns:1fr}.mu-side.right{text-align:left}.mu-side.right .mu-name{justify-content:flex-start}.mu-pts{font-size:28px}.hero{flex-wrap:wrap}.sport{margin-left:0}.connect,.trade-grid{grid-template-columns:1fr}th,td{padding:8px 9px}.pl-photo{width:76px;height:76px}.dlg-head{flex-wrap:wrap}.nav{display:flex}.nav button{flex:1}h1{font-size:20px}}
+@media (max-width:640px){.gv-big-score{font-size:26px}.gv-big-logo{width:32px;height:32px}.gv-team-name{font-size:14px}.d-offer{grid-template-columns:repeat(2,minmax(0,1fr))}.g-stage{grid-template-columns:1fr}.g-left{position:static}.g-card.big .pl-photo{width:110px;height:110px}.mu-score{gap:8px;padding:12px}.mu-name{font-size:14px;flex-wrap:wrap;gap:4px}.mu-side .desc{font-size:11px}.mu-pts{font-size:26px}.mu-win{font-size:13px}.mu-vs{font-size:12px}.hero{flex-wrap:wrap}.sport{margin-left:0}.connect,.trade-grid{grid-template-columns:1fr}th,td{padding:8px 9px}.pl-photo{width:76px;height:76px}.dlg-head{flex-wrap:wrap}.nav{display:flex;width:100%;overflow-x:auto;scrollbar-width:none}.nav::-webkit-scrollbar{display:none}.nav button{flex:1 0 auto;padding:8px 10px;font-size:13px;white-space:nowrap}.nav-full{display:none}.nav-short{display:inline}h1{font-size:20px}}
 </style>
 </head>
 <body>
@@ -430,8 +431,8 @@ td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
   </dialog>
   <div class="banner" id="banner" hidden></div>
   <div class="nav" role="tablist">
-    <button type="button" role="tab" id="nav-rankings" aria-controls="view-rankings">Player rankings</button>
-    <button type="button" role="tab" id="nav-slate" aria-controls="view-slate">Weekly slate</button>
+    <button type="button" role="tab" id="nav-rankings" aria-controls="view-rankings"><span class="nav-full">Player rankings</span><span class="nav-short">Rankings</span></button>
+    <button type="button" role="tab" id="nav-slate" aria-controls="view-slate"><span class="nav-full">Weekly slate</span><span class="nav-short">Slate</span></button>
     <button type="button" role="tab" id="nav-league" aria-controls="view-league">My league</button>
     <button type="button" role="tab" id="nav-games" aria-controls="view-games">Games</button>
   </div>
