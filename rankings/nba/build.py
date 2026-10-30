@@ -23,6 +23,7 @@ from pathlib import Path
 from statistics import mean
 
 from ..aggregate import norm_name
+from ..players import college
 from ..sources import CACHE_DIR, _get, _json_after
 
 POSITIONS = ["PG", "SG", "SF", "PF", "C"]
@@ -224,7 +225,7 @@ def current_week(cal: dict, today: date) -> int:
 
 def bio(info: dict) -> dict:
     out = {"bd": info.get("birth_date"), "ht": info.get("height"), "wt": info.get("weight"),
-           "col": info.get("college"), "exp": info.get("years_exp"), "num": info.get("number"),
+           "col": college(info.get("college")), "exp": info.get("years_exp"), "num": info.get("number"),
            "inj": " ".join(x for x in (info.get("injury_body_part"), info.get("injury_notes")) if x) or None}
     return {k: v for k, v in out.items() if v not in (None, "")}
 

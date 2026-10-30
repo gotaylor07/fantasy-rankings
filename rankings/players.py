@@ -39,13 +39,21 @@ def game_row(week: int, opp, st: dict) -> list:
     return [week, opp or "", _num(st.get("pts_ppr")), snap_pct] + [_num(st.get(f)) for f in LOG_FIELDS]
 
 
+# Sleeper sometimes names the same school two ways; use one name everywhere ("as listed": "use").
+COLLEGES = {"North Carolina State": "NC State", "Gonzaga Bulldogs": "Gonzaga"}
+
+
+def college(name):
+    return COLLEGES.get(name, name) if name else name
+
+
 def bio(info: dict) -> dict:
     """Profile fields from Sleeper's player file, short keys to keep the page small."""
     out = {
         "bd": info.get("birth_date"),
         "ht": info.get("height"),
         "wt": info.get("weight"),
-        "col": info.get("college"),
+        "col": college(info.get("college")),
         "exp": info.get("years_exp"),
         "num": info.get("number"),
         "inj": " ".join(x for x in (info.get("injury_body_part"), info.get("injury_notes")) if x) or None,

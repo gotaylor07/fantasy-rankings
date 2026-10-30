@@ -158,6 +158,13 @@ class KickerDefenseTests(unittest.TestCase):
         self.assertEqual(out["DEF"], [])
 
 
+class CollegeTests(unittest.TestCase):
+    def test_one_name_per_school(self):
+        self.assertEqual(players.bio({"college": "North Carolina State"})["col"], "NC State")
+        self.assertEqual(players.bio({"college": "NC State"})["col"], "NC State")
+        self.assertEqual(players.bio({"college": "Clemson"})["col"], "Clemson")
+
+
 class HistoryTests(unittest.TestCase):
     def test_season_is_ranked_and_cached(self):
         import tempfile
