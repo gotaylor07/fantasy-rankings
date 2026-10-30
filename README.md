@@ -76,6 +76,8 @@ The **Weekly slate** tab lists every game this week (football: the NFL week; bas
 
 Scores update live from ESPN's public scoreboard: every 20 seconds while any game is in progress, every 5 minutes otherwise, and only while the page is open and visible. Live football games also show down and distance, possession, the last play and ESPN's live win chance. The banner on top cycles through big plays (football: touchdowns, turnovers and gains of 20+ yards, from each game's play-by-play) or player highs (basketball: each team's top performer).
 
+**Fantasy points in box scores:** football box scores start with a Fantasy points table ranking every player's full-PPR points (passing, rushing, receiving, lost fumbles, and kickers' points), with how they got them; basketball box scores add an FPTS column (ESPN standard points) and a team total. Both update with the live box score.
+
 **Weeks:** the slate opens on the current week; the ‹ › arrows step to past weeks (final scores) and upcoming ones. A football week runs Tuesday to Monday, so the site moves to the next week on Tuesday morning, after Monday night's game. Dates are worked out in US Eastern time, since GitHub's servers run on UTC.
 
 **Team schedules:** click a team's name on a game card or in a game window for its whole season: results with W/L and scores for games played, date, time and TV for the rest, with any game opening its plays and box score.
@@ -123,6 +125,10 @@ The power score compares your lineup's projected points per week with the best a
 ## Games: Who's That?
 
 Five players, one at a time, drawn from the top 150 on the rest-of-season board (football skips kickers and defenses; players with no college on file are left out). You see the face, position and team, and answer three questions: name and college (both boxes suggest matches as you type: "cle" shows Clemson; arrow keys and Enter pick one) and decade drafted (a dropdown). Each player's answers are revealed before the next. The score is correct answers out of 15. "Decade drafted" is the decade of the player's rookie season, worked out from Sleeper's years of experience: the draft year for drafted players, the year an undrafted player entered the league.
+
+## Settings
+
+The gear at the top right sets the theme (dark or light) and the accent color (blue, red, green, orange, purple or yellow). The choice is saved in your browser and applies to both pages; until you pick a theme, the site follows your device's light/dark setting.
 
 ## Hosted on GitHub Pages
 

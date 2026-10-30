@@ -7,22 +7,46 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+// Theme and accent color, saved per browser. Runs before the page draws so it never flashes the wrong theme.
+window.ACCENTS = {
+  blue:   {light: ['#1d63ed', '#0ea5a4', '#ffffff'], dark: ['#5b9bff', '#2dd4bf', '#08111f']},
+  red:    {light: ['#dc2626', '#f97316', '#ffffff'], dark: ['#f87171', '#fb923c', '#1a0606']},
+  green:  {light: ['#15803d', '#0d9488', '#ffffff'], dark: ['#4ade80', '#2dd4bf', '#052e16']},
+  orange: {light: ['#ea580c', '#f59e0b', '#ffffff'], dark: ['#fb923c', '#fbbf24', '#1f0d02']},
+  purple: {light: ['#7c3aed', '#db2777', '#ffffff'], dark: ['#a78bfa', '#f472b6', '#14082b']},
+  yellow: {light: ['#ca8a04', '#ea580c', '#1c1300'], dark: ['#facc15', '#fb923c', '#1c1300']},
+};
+window.getPrefs = function () { try { return JSON.parse(localStorage.getItem('fr-prefs-v1')) || {}; } catch (e) { return {}; } };
+window.applyPrefs = function (p) {
+  var systemDark = !(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+  var theme = p.theme === 'light' || p.theme === 'dark' ? p.theme : (systemDark ? 'dark' : 'light');
+  var c = (window.ACCENTS[p.accent] || window.ACCENTS.blue)[theme];
+  var r = document.documentElement;
+  r.setAttribute('data-theme', theme);
+  r.style.setProperty('--accent', c[0]); r.style.setProperty('--accent-2', c[1]); r.style.setProperty('--accent-text', c[2]);
+  r.style.colorScheme = theme;
+};
+window.applyPrefs(window.getPrefs());
+</script>
 <style>
 :root{
-  --bg:#eef2f8;--bg-glow-1:rgba(27,110,243,.16);--bg-glow-2:rgba(22,160,133,.12);
+  --bg:#eef2f8;--bg-glow-1:color-mix(in srgb,var(--accent) 16%,transparent);--bg-glow-2:color-mix(in srgb,var(--accent-2) 12%,transparent);
   --card:#ffffff;--card-2:#f7f9fc;--text:#111827;--muted:#64748b;--line:#e2e8f0;
-  --accent:#1d63ed;--accent-2:#0ea5a4;--accent-text:#fff;--row:#f8fafc;--hover:#eef4ff;
-  --warn-bg:#fff4d6;--warn-text:#7a5200;--good:#15803d;--bad:#c2261d;--chg:#e8f0ff;
+  --accent:#1d63ed;--accent-2:#0ea5a4;--accent-text:#fff;--row:#f8fafc;
+  --hover:color-mix(in srgb,var(--accent) 7%,var(--card));--chg:color-mix(in srgb,var(--accent) 10%,var(--card));
+  --warn-bg:#fff4d6;--warn-text:#7a5200;--good:#15803d;--bad:#c2261d;
   --backdrop:rgba(15,23,42,.5);--shadow:0 1px 2px rgba(15,23,42,.05),0 6px 20px rgba(15,23,42,.06);
   --radius:14px;
 }
-@media (prefers-color-scheme: dark){:root{
-  --bg:#0b1017;--bg-glow-1:rgba(76,141,255,.16);--bg-glow-2:rgba(20,184,166,.10);
+:root[data-theme="dark"]{
+  --bg:#0b1017;--bg-glow-1:color-mix(in srgb,var(--accent) 16%,transparent);--bg-glow-2:color-mix(in srgb,var(--accent-2) 10%,transparent);
   --card:#141b25;--card-2:#18212d;--text:#e8edf4;--muted:#8e9aab;--line:#243042;
-  --accent:#5b9bff;--accent-2:#2dd4bf;--accent-text:#08111f;--row:#161e29;--hover:#1b2636;
-  --warn-bg:#3a2f0b;--warn-text:#f6dc8f;--good:#4ade80;--bad:#ff7b72;--chg:#18294a;
+  --accent:#5b9bff;--accent-2:#2dd4bf;--accent-text:#08111f;--row:#161e29;
+  --hover:color-mix(in srgb,var(--accent) 10%,var(--card));--chg:color-mix(in srgb,var(--accent) 16%,var(--card));
+  --warn-bg:#3a2f0b;--warn-text:#f6dc8f;--good:#4ade80;--bad:#ff7b72;
   --backdrop:rgba(0,0,0,.65);--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.25);
-}}
+}
 *{box-sizing:border-box}
 html{background:var(--bg)}
 body{margin:0;min-height:100vh;color:var(--text);font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -30,6 +54,21 @@ body{margin:0;min-height:100vh;color:var(--text);font:15px/1.5 Inter,system-ui,-
   -webkit-font-smoothing:antialiased}
 .wrap{max-width:1020px;margin:0 auto;padding:24px 16px 56px}
 .hero{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.gear{flex:none;width:44px;height:44px;display:grid;place-items:center;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer;box-shadow:var(--shadow);transition:transform .2s}
+.gear:hover{transform:rotate(30deg);border-color:var(--accent)}
+dialog.settings{width:min(420px,calc(100vw - 24px))}
+.set-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:14px 0 8px}
+.set-label:first-child{margin-top:0}
+.theme-opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.theme-opt{border:2px solid var(--line);border-radius:14px;padding:10px;background:var(--card);color:var(--text);font:inherit;font-weight:600;cursor:pointer;text-align:left}
+.theme-opt[aria-pressed=true]{border-color:var(--accent)}
+.theme-swatch{height:44px;border-radius:9px;margin-bottom:8px;border:1px solid var(--line)}
+.theme-swatch.dark{background:linear-gradient(135deg,#0b1017,#18212d)}
+.theme-swatch.light{background:linear-gradient(135deg,#eef2f8,#ffffff)}
+.accent-opts{display:flex;flex-wrap:wrap;gap:10px}
+.accent-opt{width:44px;height:44px;border-radius:50%;border:3px solid var(--card);box-shadow:0 0 0 2px var(--line);cursor:pointer;display:grid;place-items:center;color:#fff;font-weight:800}
+.accent-opt[aria-pressed=true]{box-shadow:0 0 0 3px var(--text)}
+.set-note{margin-top:14px}
 .sport{margin-left:auto;display:flex;gap:4px;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:999px;box-shadow:var(--shadow)}
 .sport a{display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;color:var(--muted);text-decoration:none;font-weight:600;font-size:14px}
 .sport a:hover{color:var(--text)}
@@ -356,7 +395,14 @@ td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
       <p class="sub" id="sub"></p>
     </div>
     <nav class="sport" id="sport" aria-label="Sport"></nav>
+    <button type="button" class="gear" id="settingsBtn" aria-label="Settings" title="Settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
   </header>
+  <dialog id="settings" class="settings" aria-labelledby="set-title">
+    <div class="dlg-head"><h2 id="set-title">Settings</h2><button type="button" class="close" id="set-close" aria-label="Close">×</button></div>
+    <div class="dlg-body" id="set-body"></div>
+  </dialog>
   <div class="banner" id="banner" hidden></div>
   <div class="nav" role="tablist">
     <button type="button" role="tab" id="nav-rankings" aria-controls="view-rankings">Player rankings</button>
@@ -550,8 +596,8 @@ const NBA_TEAM_NAMES = {
   SAC: 'Sacramento Kings', SAS: 'San Antonio Spurs', TOR: 'Toronto Raptors', UTA: 'Utah Jazz', WAS: 'Washington Wizards',
 };
 const TEAM_COLORS = NBA ? NBA_TEAM_COLORS : NFL_TEAM_COLORS;
-const darkMode = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : {matches: false};
-const teamColor = team => (TEAM_COLORS[team] || [])[darkMode.matches ? 1 : 0] || null;
+const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
+const teamColor = team => (TEAM_COLORS[team] || [])[isDark() ? 1 : 0] || null;
 function tint(node, team) { const c = teamColor(team); if (c) node.style.setProperty('--tc', c); return node; }
 
 function imageFor(sid, pos, team, thumb) {
@@ -3777,6 +3823,51 @@ function gvPlayerLink(name, group) {
   return sid && P[sid] ? playerButton(sid, name) : document.createTextNode(name);
 }
 
+/** Football: each player's full-PPR points from the box score, summed over the passing, rushing, receiving, fumble and kicking tables. */
+function gvFootballFantasy(tm) {
+  const at = (g, label) => (g.labels || []).indexOf(label);
+  const num = v => parseFloat(String(v).replace(/[^\d.-]/g, '')) || 0;
+  const by = new Map();
+  const add = (a, pts, part) => {
+    const k = a.athlete.id || a.athlete.displayName;
+    const r = by.get(k) || {name: a.athlete.displayName, pts: 0, parts: [], group: null};
+    r.pts += pts; if (part) r.parts.push(part); by.set(k, r);
+    return r;
+  };
+  (tm.statistics || []).forEach(g => (g.athletes || []).forEach(a => {
+    const v = l => { const i = at(g, l); return i >= 0 ? num(a.stats[i]) : 0; };
+    if (g.name === 'passing') {
+      const yd = v('YDS'), td = v('TD'), int = v('INT');
+      const r = add(a, yd * 0.04 + td * 4 - int * 2, `${yd} pass yds${td ? `, ${td} TD` : ''}${int ? `, ${int} INT` : ''}`); r.group = r.group || 'passing';
+    } else if (g.name === 'rushing') {
+      const yd = v('YDS'), td = v('TD');
+      const r = add(a, yd * 0.1 + td * 6, `${yd} rush yds${td ? `, ${td} TD` : ''}`); r.group = r.group || 'rushing';
+    } else if (g.name === 'receiving') {
+      const rec = v('REC'), yd = v('YDS'), td = v('TD');
+      const r = add(a, rec + yd * 0.1 + td * 6, `${rec} rec, ${yd} yds${td ? `, ${td} TD` : ''}`); r.group = r.group || 'receiving';
+    } else if (g.name === 'fumbles') {
+      const lost = v('LOST'); if (lost) add(a, -2 * lost, `${lost} fumble${lost > 1 ? 's' : ''} lost`);
+    } else if (g.name === 'kicking') {
+      const pts = v('PTS'); const r = add(a, pts, `${a.stats[at(g, 'FG')] || 0} FG, ${a.stats[at(g, 'XP')] || 0} XP`); r.group = 'kicking';
+    }
+  }));
+  return [...by.values()].filter(r => r.parts.length).sort((x, y) => y.pts - x.pts);
+}
+
+/** Basketball: a box-score row as a stat line the site's scoring can read. */
+function gvNbaLine(g, stats) {
+  const at = l => (g.labels || []).indexOf(l);
+  const n = l => { const i = at(l); return i >= 0 ? parseFloat(stats[i]) || 0 : 0; };
+  const pair = l => { const i = at(l); const [m, a] = String(i >= 0 ? stats[i] : '0-0').split('-').map(x => parseFloat(x) || 0); return [m, a]; };
+  const [fgm, fga] = pair('FG'), [tpm, tpa] = pair('3PT'), [ftm, fta] = pair('FT');
+  const line = new Array(FIELDS.length).fill(0);
+  Object.entries({min: n('MIN'), pts: n('PTS'), reb: n('REB'), ast: n('AST'), stl: n('STL'), blk: n('BLK'), to: n('TO'),
+                  tpm, tpa, fgm, fga, ftm, fta, oreb: n('OREB')}).forEach(([k, v]) => { if (k in FI) line[FI[k]] = v; });
+  const tens = ['pts', 'reb', 'ast', 'stl', 'blk'].filter(k => line[FI[k]] >= 10).length;
+  line[FI.dd] = tens >= 2 ? 1 : 0; line[FI.td] = tens >= 3 ? 1 : 0;
+  return line;
+}
+
 function gvBox(s, box) {
   const teams = (s.boxscore || {}).players || [];
   if (!teams.length) { box.appendChild(el('p', 'empty', 'Player stats show up once the game starts.')); return; }
@@ -3787,13 +3878,26 @@ function gvBox(s, box) {
     if (logo) { const img = el('img'); img.alt = ''; img.src = logo; head.appendChild(img); }
     head.appendChild(el('h3', '', t.displayName || t.abbreviation));
     box.appendChild(head);
+    if (!NBA) {
+      const fp = gvFootballFantasy(tm);
+      if (fp.length) {
+        box.appendChild(el('div', 'gv-group', 'Fantasy points (full PPR)'));
+        box.appendChild(table([['Player', 'l'], 'FPTS', ['How', 'l']], fp.map(r => {
+          const tr = el('tr');
+          const c = td('', 'l'); c.appendChild(gvPlayerLink(r.name, r.group)); tr.appendChild(c);
+          tr.appendChild(td(fmt(r.pts), 'avg'));
+          tr.appendChild(td(r.parts.join(' · '), 'l muted wrap'));
+          return tr;
+        })));
+      }
+    }
     (tm.statistics || []).forEach(g => {
       const athletes = (g.athletes || []).filter(a => !a.didNotPlay && (a.stats || []).length);
       if (!athletes.length) return;
       if (!NBA) box.appendChild(el('div', 'gv-group', (g.text || g.name || '').replace(/^\w/, c => c.toUpperCase())));
       const rows = [];
       const addRows = (list, label) => {
-        if (label && list.length) { const tr = el('tr', 'gv-sub'); const c = td(label, 'l'); c.colSpan = (g.labels || []).length + 1; tr.appendChild(c); rows.push(tr); }
+        if (label && list.length) { const tr = el('tr', 'gv-sub'); const c = td(label, 'l'); c.colSpan = (g.labels || []).length + (NBA ? 2 : 1); tr.appendChild(c); rows.push(tr); }
         list.forEach(a => {
           const tr = el('tr');
           const c = td('', 'l');
@@ -3801,6 +3905,7 @@ function gvBox(s, box) {
           const pos = (a.athlete.position || {}).abbreviation;
           if (pos) c.appendChild(el('span', 'muted', ' ' + pos));
           tr.appendChild(c);
+          if (NBA) tr.appendChild(td(fmt(nbaPoints(gvNbaLine(g, a.stats), D.scoring)), 'avg'));
           a.stats.forEach(v => tr.appendChild(td(v)));
           rows.push(tr);
         });
@@ -3808,8 +3913,13 @@ function gvBox(s, box) {
       if (NBA) { addRows(athletes.filter(a => a.starter), 'Starters'); addRows(athletes.filter(a => !a.starter), 'Bench'); }
       else addRows(athletes);
       let foot = null;
-      if (g.totals && g.totals.some(Boolean)) { foot = el('tr'); foot.appendChild(td('Team', 'l')); g.totals.forEach(v => foot.appendChild(td(v))); }
-      box.appendChild(table([['Player', 'l'], ...(g.labels || [])], rows, foot));
+      if (g.totals && g.totals.some(Boolean)) {
+        foot = el('tr'); foot.appendChild(td('Team', 'l'));
+        if (NBA) foot.appendChild(td(fmt(athletes.reduce((sum, a) => sum + nbaPoints(gvNbaLine(g, a.stats), D.scoring), 0))));
+        g.totals.forEach(v => foot.appendChild(td(v)));
+      }
+      box.appendChild(table([['Player', 'l'], ...(NBA ? ['FPTS'] : []), ...(g.labels || [])], rows, foot));
+      if (NBA) box.appendChild(el('p', 'note', 'FPTS uses ESPN standard points scoring.'));
     });
   });
 }
@@ -4168,6 +4278,56 @@ document.getElementById('espnForm').addEventListener('submit', async e => {
 });
 
 // ---------------------------------------------------------------- start
+
+// ---------------------------------------------------------------- settings: theme and accent color
+
+function renderSettings() {
+  const body = document.getElementById('set-body');
+  const p = getPrefs();
+  const theme = document.documentElement.getAttribute('data-theme');
+  body.replaceChildren();
+  body.appendChild(el('div', 'set-label', 'Theme'));
+  const themes = el('div', 'theme-opts');
+  [['dark', 'Dark'], ['light', 'Light']].forEach(([k, label]) => {
+    const b = el('button', 'theme-opt'); b.type = 'button'; b.setAttribute('aria-pressed', String(theme === k));
+    b.appendChild(el('div', 'theme-swatch ' + k));
+    b.appendChild(document.createTextNode(label));
+    b.addEventListener('click', () => savePrefs({...getPrefs(), theme: k}));
+    themes.appendChild(b);
+  });
+  body.appendChild(themes);
+  body.appendChild(el('div', 'set-label', 'Accent color'));
+  const accents = el('div', 'accent-opts');
+  const current = p.accent || 'blue';
+  Object.entries(window.ACCENTS).forEach(([k, c]) => {
+    const b = el('button', 'accent-opt', current === k ? '✓' : ''); b.type = 'button';
+    b.style.background = c[theme][0];
+    b.style.color = c[theme][2];
+    b.setAttribute('aria-pressed', String(current === k));
+    b.setAttribute('aria-label', k[0].toUpperCase() + k.slice(1)); b.title = b.getAttribute('aria-label');
+    b.addEventListener('click', () => savePrefs({...getPrefs(), accent: k}));
+    accents.appendChild(b);
+  });
+  body.appendChild(accents);
+  body.appendChild(el('p', 'note set-note', 'Saved in this browser, for both the football and basketball pages.'));
+}
+
+function savePrefs(p) {
+  try { localStorage.setItem('fr-prefs-v1', JSON.stringify(p)); } catch (e) { /* private window: applies until you leave */ }
+  applyPrefs(p);
+  renderSettings();
+  // Team colors have light and dark versions, so redraw what's on screen.
+  renderRankings();
+  if (view === 'league') renderLeague();
+  else if (view === 'slate') renderSlate();
+  else if (view === 'games') renderGames();
+}
+
+document.getElementById('settingsBtn').addEventListener('click', () => { renderSettings(); document.getElementById('settings').showModal(); });
+document.getElementById('set-close').addEventListener('click', () => document.getElementById('settings').close());
+document.getElementById('settings').addEventListener('click', e => { if (e.target.id === 'settings') e.target.close(); });
+// Following the device setting: switch along with it until a theme is picked here.
+if (window.matchMedia) window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (!getPrefs().theme) savePrefs(getPrefs()); });
 
 (function init() {
   const when = new Date(D.generated);
