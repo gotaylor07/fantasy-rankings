@@ -358,6 +358,8 @@ dialog.tsched{width:min(640px,calc(100vw - 24px));max-height:calc(100vh - 32px)}
 .ts-opp{display:flex;align-items:center;gap:8px;min-width:0}
 .ts-opp img{width:24px;height:24px;object-fit:contain}
 .ts-res{display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ts-opp b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ts-tv::before{content:"· "}
 .ts-wl{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;font-size:12px;font-weight:800;color:#fff}
 .ts-wl.w{background:var(--good)}.ts-wl.l{background:var(--bad)}.ts-wl.t{background:var(--muted)}
 .ts-tabs{margin-bottom:12px}
@@ -393,6 +395,14 @@ td.cell-sit{color:var(--muted)}
 td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
 @media (max-width:900px){.d-offer{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:640px){
+/* Phones: schedule rows on two lines (date; opponent and result) so nothing overlaps. */
+.ts-row{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"when res" "opp res";row-gap:2px;padding:9px 11px}
+.ts-when{grid-area:when;font-size:12px}
+.ts-opp{grid-area:opp}
+.ts-res{grid-area:res;flex-direction:column;align-items:flex-end;justify-content:center;gap:0;text-align:right;white-space:normal;max-width:46vw}
+.ts-row.post .ts-res{flex-direction:row;gap:8px}
+.ts-tv{font-size:12px}
+.ts-tv::before{content:""}
 /* Phones: stack the game header (clock on top, one row per team, score on the right) so nothing overlaps. */
 .gv-scoreboard{grid-template-columns:1fr;gap:6px;padding-right:40px}
 .gv-mid{order:-1;text-align:left;display:flex;align-items:center}
@@ -4272,11 +4282,19 @@ async function openTeamSchedule(teamId, fallback = {}, tab = 'schedule') {
       res.appendChild(el('span', 'ts-wl ' + (won ? 'w' : tie ? 't' : 'l'), won ? 'W' : tie ? 'T' : 'L'));
       res.appendChild(el('span', '', `${score(me)}–${score(opp)}`));
     } else if (st.state === 'in') {
-      res.appendChild(el('span', 'sl-live-dot', ''));
-      res.appendChild(el('b', '', `${score(me) ?? ''}–${score(opp) ?? ''} · ${st.shortDetail}`));
+      // The schedule feed has no scores for games in progress; take them from the live scoreboard.
+      const ev = slate.events.find(x => x.id === String(e.id));
+      const mine = ev && (String(ev.home.id) === String(teamId) ? ev.home : ev.away);
+      const theirs = ev && (mine === ev.home ? ev.away : ev.home);
+      const line = el('b', '');
+      line.appendChild(el('span', 'sl-live-dot', ''));
+      line.appendChild(document.createTextNode(mine && mine.score != null ? `${mine.score}–${theirs.score}` : 'Live'));
+      res.appendChild(line);
+      res.appendChild(el('span', 'muted ts-tv', ev ? ev.detail : st.shortDetail));
     } else {
       const tv = (((c.broadcasts || [])[0] || {}).media || {}).shortName || '';
-      res.appendChild(el('span', 'muted', `${/TBD/.test(st.shortDetail || '') ? 'TBD' : timeLabel(e.date)}${tv ? ' · ' + tv : ''}`));
+      res.appendChild(el('span', 'muted', /TBD/.test(st.shortDetail || '') ? 'TBD' : timeLabel(e.date)));
+      if (tv) res.appendChild(el('span', 'muted ts-tv', tv));
     }
     row.appendChild(res);
     list.appendChild(row);
