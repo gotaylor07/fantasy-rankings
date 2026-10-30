@@ -300,6 +300,26 @@ dialog.gview[open]{display:flex}
 .gv-box-head h3{margin:0}
 .gv-group{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:12px 0 4px}
 tr.gv-sub td{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--card-2)}
+.sl-weeknav{display:flex;align-items:center;gap:10px;margin:0 0 14px;flex-wrap:wrap}
+.sl-arrow{width:40px;height:40px;padding:0;font-size:22px;line-height:1;border-radius:12px}
+.sl-weeklabel{display:flex;flex-direction:column;align-items:center;min-width:150px;line-height:1.25}
+.sl-weeklabel b{font-size:17px}
+.sl-teamlink{font-weight:700}
+dialog.tsched{width:min(640px,calc(100vw - 24px));max-height:calc(100vh - 32px)}
+.ts-head{align-items:center;padding-bottom:12px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,color-mix(in srgb,var(--tc,var(--accent)) 22%,transparent),transparent 70%)}
+.ts-head::before{display:none}
+.ts-body{padding-top:12px}
+.ts-list{display:flex;flex-direction:column;gap:6px}
+.ts-group{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 0 2px}
+.ts-row{display:grid;grid-template-columns:110px 1fr auto;align-items:center;gap:10px;padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit;text-align:left;cursor:pointer}
+.ts-row:hover,.ts-row:focus-visible{border-color:var(--accent);outline:none}
+.ts-row.in{border-color:color-mix(in srgb,#ef4444 55%,var(--line))}
+.ts-when{font-size:13px;color:var(--muted)}
+.ts-opp{display:flex;align-items:center;gap:8px;min-width:0}
+.ts-opp img{width:24px;height:24px;object-fit:contain}
+.ts-res{display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ts-wl{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;font-size:12px;font-weight:800;color:#fff}
+.ts-wl.w{background:var(--good)}.ts-wl.l{background:var(--bad)}.ts-wl.t{background:var(--muted)}
 @keyframes g-fall{to{transform:translateY(105vh) rotate(720deg);opacity:.9}}
 @media (prefers-reduced-motion: reduce){.g-enter,.g-slot.filled{animation:none}}
 .mu-mini{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -397,6 +417,11 @@ td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
   </section>
   <p class="foot" id="gen"></p>
 </div>
+
+<dialog id="tsched" class="tsched" aria-labelledby="ts-name">
+  <div class="dlg-head ts-head" id="ts-head"></div>
+  <div class="dlg-body ts-body" id="ts-body"></div>
+</dialog>
 
 <dialog id="gview" class="gview" aria-label="Game">
   <div class="gv-head" id="gv-head"></div>
@@ -3384,16 +3409,17 @@ function confetti() {
 const SLATE_PATH = NBA ? 'basketball/nba' : 'football/nfl';
 const ESPN_TO_SLEEPER = NBA ? {GS: 'GSW', NY: 'NYK', SA: 'SAS', NO: 'NOP', UTAH: 'UTA', WSH: 'WAS'} : {WSH: 'WAS'};
 const abbrOf = a => ESPN_TO_SLEEPER[a] || a;
-const slate = {events: [], odds: Object.assign({}, (D.slate || {}).odds), plays: {}, fetched: null, error: null, day: null, hi: 0, loading: false, tick: 0};
+const slate = {events: [], odds: Object.assign({}, (D.slate || {}).odds), plays: {}, fetched: null, error: null, day: null, hi: 0, loading: false, tick: 0,
+               week: D.week, byWeek: {}};   // week = the week on screen; events = the current week, which is kept live
 const TEAM_LIVE = {};   // football: team -> status; basketball: "team|date" -> status. {state, left (share of game left), detail}
 
 const etDate = iso => new Date(iso).toLocaleDateString('en-CA', {timeZone: 'America/New_York'});
 const timeLabel = iso => new Date(iso).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
 
-function slateUrls() {
+function slateUrls(w = D.week) {
   const base = `https://site.api.espn.com/apis/site/v2/sports/${SLATE_PATH}/scoreboard`;
-  if (!NBA) return [`${base}?seasontype=2&week=${D.week}&dates=${D.season}`];
-  const wk = CAL.weeks[String(D.week)] || [TODAY, TODAY];
+  if (!NBA) return [`${base}?seasontype=2&week=${w}&dates=${D.season}`];
+  const wk = CAL.weeks[String(w)] || [TODAY, TODAY];
   return datesBetween(wk[0], wk[1]).map(d => `${base}?dates=${d.replace(/-/g, '')}`);   // one day per request
 }
 
@@ -3580,7 +3606,7 @@ function slateCard(ev) {
     if (t.logo) { const img = el('img'); img.alt = ''; img.loading = 'lazy'; img.src = t.logo; img.addEventListener('error', () => img.remove()); logo.appendChild(img); }
     row.appendChild(logo);
     const nm = el('div', 'sl-name');
-    nm.appendChild(el('b', '', t.name));
+    nm.appendChild(teamButton(t));
     const chip = teamChip(t.abbr); if (chip) nm.appendChild(chip);
     if (t.record) nm.appendChild(el('span', 'desc', t.record));
     if (ev.situation && ev.situation.ball === t.abbr) nm.appendChild(el('span', 'sl-ball', NBA ? '' : '🏈'));
@@ -3618,10 +3644,13 @@ function slateCard(ev) {
 function renderSlate() {
   const box = document.getElementById('slateBody');
   box.replaceChildren();
+  const current = slate.week === D.week;
+  const week = current ? {events: slate.events, error: slate.error} : (slate.byWeek[slate.week] || {events: [], loading: true});
+  if (!current && !slate.byWeek[slate.week]) loadSlateWeek(slate.week);
   const head = el('div', 'tools');
   const titleBox = el('div');
-  titleBox.appendChild(el('h2', '', `Week ${D.week} slate`));
-  const live = anyLive();
+  titleBox.appendChild(el('h2', '', 'Weekly slate'));
+  const live = current && anyLive();
   const status = el('div', 'desc');
   if (live) status.appendChild(el('span', 'sl-live-dot', ''));
   status.appendChild(document.createTextNode(slate.fetched
@@ -3629,23 +3658,29 @@ function renderSlate() {
     : 'Loading scores from ESPN…'));
   titleBox.appendChild(status);
   head.appendChild(titleBox);
-  const btn = el('button', 'btn ghost', 'Refresh'); btn.type = 'button'; btn.addEventListener('click', refreshSlate);
+  const btn = el('button', 'btn ghost', 'Refresh'); btn.type = 'button';
+  btn.addEventListener('click', () => { if (current) refreshSlate(); else { delete slate.byWeek[slate.week]; renderSlate(); } });
   head.appendChild(btn);
   box.appendChild(head);
-  if (slate.error) box.appendChild(el('p', 'err', slate.error));
+  slateWeekNav(box);
+  if (week.error) box.appendChild(el('p', 'err', week.error));
 
-  const ticker = el('div', 'sl-ticker'); ticker.id = 'sl-ticker';
-  box.appendChild(ticker);
-  paintTicker(ticker);
+  // Highlights follow the current week's games.
+  if (current) {
+    const ticker = el('div', 'sl-ticker'); ticker.id = 'sl-ticker';
+    box.appendChild(ticker);
+    paintTicker(ticker);
+  }
 
-  if (!slate.events.length) { box.appendChild(el('p', 'empty', slate.fetched ? 'No games found for this week.' : 'Loading games…')); return; }
+  const events = week.events;
+  if (!events.length) { box.appendChild(el('p', 'empty', (current ? slate.fetched : !week.loading) ? 'No games found for this week.' : 'Loading games…')); return; }
   // Group by day; basketball gets day tabs since there are ~50 games a week.
-  const days = [...new Set(slate.events.map(e => etDate(e.date)))];
+  const days = [...new Set(events.map(e => etDate(e.date)))];
   let shown = days;
   if (NBA) {
     if (!days.includes(slate.day)) slate.day = days.includes(TODAY) ? TODAY : days.find(d => d >= TODAY) || days[days.length - 1];
     const bar = el('div', 'tabs');
-    tabs(bar, days.map(d => [d, `${new Date(d + 'T12:00:00').toLocaleDateString([], {weekday: 'short', month: 'numeric', day: 'numeric'})} (${slate.events.filter(e => etDate(e.date) === d).length})`]),
+    tabs(bar, days.map(d => [d, `${new Date(d + 'T12:00:00').toLocaleDateString([], {weekday: 'short', month: 'numeric', day: 'numeric'})} (${events.filter(e => etDate(e.date) === d).length})`]),
       slate.day, v => { slate.day = v; renderSlate(); });
     box.appendChild(bar);
     shown = [slate.day];
@@ -3653,7 +3688,7 @@ function renderSlate() {
   shown.forEach(d => {
     box.appendChild(el('h3', 'sl-day', new Date(d + 'T12:00:00').toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'})));
     const grid = el('div', 'sl-grid');
-    slate.events.filter(e => etDate(e.date) === d).forEach(ev => grid.appendChild(slateCard(ev)));
+    events.filter(e => etDate(e.date) === d).forEach(ev => grid.appendChild(slateCard(ev)));
     box.appendChild(grid);
   });
   box.appendChild(el('p', 'foot', `Click a game for live plays and the box score. Scores and play-by-play from ESPN. Lines are ${Object.values(slate.odds)[0] && Object.values(slate.odds)[0].provider || 'sportsbook'} pre-game lines (spread, over/under, moneyline); they aren't updated during games.`));
@@ -3789,7 +3824,7 @@ function gvHeader(s) {
     const side = tint(el('div', 'gv-side' + (i ? ' right' : '')), t.abbr);
     if (t.logo) { const img = el('img', 'gv-big-logo'); img.alt = ''; img.src = t.logo; side.appendChild(img); }
     const nm = el('div');
-    nm.appendChild(el('div', 'gv-team-name', t.name));
+    const tn = el('div', 'gv-team-name'); tn.appendChild(teamButton({id: t.id, name: t.name, logo: t.logo, record: t.record, abbr: t.abbr})); nm.appendChild(tn);
     if (t.record) nm.appendChild(el('div', 'desc', t.record));
     side.appendChild(nm);
     side.appendChild(el('div', 'gv-big-score', status.state === 'pre' ? '' : String(t.score ?? '')));
@@ -3898,6 +3933,130 @@ document.getElementById('gview').addEventListener('click', e => { if (e.target.i
 document.getElementById('gv-body').addEventListener('scroll', e => {
   if (e.target.scrollTop < 30) { gv.newCount = 0; const p = document.getElementById('gv-new'); if (p) p.hidden = true; }
 });
+
+// ---------------------------------------------------------------- weekly slate: other weeks, team schedules
+
+const SLATE_WEEKS = NBA ? Math.max(1, ...Object.keys(CAL.weeks).map(Number)) : 18;
+
+/** Games for a week other than the current one: fetched once when you step to it. */
+async function loadSlateWeek(w) {
+  const cached = slate.byWeek[w];
+  if (cached && (cached.events.length || cached.loading)) return;
+  slate.byWeek[w] = {events: [], loading: true};
+  const lists = await Promise.all(slateUrls(w).map(u => getJSON(u).then(d => d.events || []).catch(() => null)));
+  slate.byWeek[w] = {events: lists.filter(Boolean).flat().map(parseSlateEvent).sort((a, b) => a.date.localeCompare(b.date)),
+                     error: lists.every(x => x === null) ? 'Couldn\'t reach ESPN for this week.' : null};
+  if (view === 'slate' && slate.week === w) renderSlate();
+}
+
+function weekRange(w) {
+  if (NBA) { const span = CAL.weeks[String(w)]; return span ? [span[0], span[1]] : null; }
+  const evs = w === D.week ? slate.events : ((slate.byWeek[w] || {}).events || []);
+  if (!evs.length) return null;
+  return [etDate(evs[0].date), etDate(evs[evs.length - 1].date)];
+}
+
+function slateWeekNav(box) {
+  const nav = el('div', 'sl-weeknav');
+  const step = d => { const w = Math.min(SLATE_WEEKS, Math.max(1, slate.week + d)); if (w !== slate.week) { slate.week = w; slate.day = null; renderSlate(); } };
+  const prev = el('button', 'btn ghost sl-arrow', '‹'); prev.type = 'button'; prev.setAttribute('aria-label', 'Previous week');
+  prev.disabled = slate.week <= 1; prev.addEventListener('click', () => step(-1));
+  const next = el('button', 'btn ghost sl-arrow', '›'); next.type = 'button'; next.setAttribute('aria-label', 'Next week');
+  next.disabled = slate.week >= SLATE_WEEKS; next.addEventListener('click', () => step(1));
+  const mid = el('div', 'sl-weeklabel');
+  mid.appendChild(el('b', '', `Week ${slate.week}`));
+  const r = weekRange(slate.week);
+  const d = x => new Date(x + 'T12:00:00').toLocaleDateString([], {month: 'short', day: 'numeric'});
+  if (r) mid.appendChild(el('span', 'desc', `${d(r[0])} – ${d(r[1])}`));
+  mid.appendChild(el('span', 'desc', slate.week === D.week ? 'This week' : slate.week < D.week ? 'Past week' : 'Upcoming'));
+  nav.append(prev, mid, next);
+  if (slate.week !== D.week) {
+    const back = el('button', 'btn ghost', 'Back to this week'); back.type = 'button';
+    back.addEventListener('click', () => { slate.week = D.week; slate.day = null; renderSlate(); });
+    nav.appendChild(back);
+  }
+  box.appendChild(nav);
+}
+
+function teamButton(t) {
+  const b = el('button', 'plink sl-teamlink', t.name); b.type = 'button';
+  b.title = `${t.name} schedule`;
+  b.addEventListener('click', e => { e.stopPropagation(); openTeamSchedule(t.id, t); });
+  b.addEventListener('keydown', e => e.stopPropagation());
+  return b;
+}
+
+async function openTeamSchedule(teamId, fallback = {}) {
+  const dlg = document.getElementById('tsched');
+  const head = document.getElementById('ts-head'), body = document.getElementById('ts-body');
+  head.replaceChildren(); body.replaceChildren(el('p', 'empty', 'Loading schedule…'));
+  const close = el('button', 'close', '×'); close.type = 'button'; close.setAttribute('aria-label', 'Close');
+  close.addEventListener('click', () => dlg.close());
+  const drawHead = (name, logo, record, abbr) => {
+    head.replaceChildren();
+    tint(head, abbr);
+    if (logo) { const img = el('img', 'gv-big-logo'); img.alt = ''; img.src = logo; head.appendChild(img); }
+    const info = el('div', 'pl-info');
+    const h = el('h2', '', name || 'Team'); h.id = 'ts-name';
+    info.appendChild(h);
+    info.appendChild(el('div', 'desc', `${record ? record + ' · ' : ''}${NBA ? D.season_label : D.season} schedule`));
+    head.append(info, close);
+  };
+  drawHead(fallback.name, fallback.logo, fallback.record, fallback.abbr);
+  if (!dlg.open) dlg.showModal();
+  let d;
+  try {
+    d = await getJSON(`https://site.api.espn.com/apis/site/v2/sports/${SLATE_PATH}/teams/${teamId}/schedule?season=${NBA ? D.espn_season : D.season}`);
+  } catch (e) {
+    body.replaceChildren(el('p', 'err', 'Couldn\'t load this schedule from ESPN. Try again in a moment.'));
+    return;
+  }
+  const tm = d.team || {};
+  drawHead(tm.displayName || fallback.name, ((tm.logo) || ((tm.logos || [])[0] || {}).href) || fallback.logo, tm.recordSummary || fallback.record, abbrOf(tm.abbreviation) || fallback.abbr);
+  body.replaceChildren();
+  const list = el('div', 'ts-list');
+  let lastGroup = null;
+  (d.events || []).forEach(e => {
+    const c = (e.competitions || [])[0] || {};
+    const st = (c.status || {}).type || {};
+    const me = (c.competitors || []).find(x => String((x.team || {}).id) === String(teamId)) || {};
+    const opp = (c.competitors || []).find(x => x !== me) || {};
+    const score = x => (x.score && typeof x.score === 'object' ? x.score.displayValue : x.score);
+    const group = NBA ? new Date(e.date).toLocaleDateString([], {month: 'long', year: 'numeric'}) : null;
+    if (group && group !== lastGroup) { list.appendChild(el('div', 'ts-group', group)); lastGroup = group; }
+    const row = el('button', 'ts-row ' + (st.state || '')); row.type = 'button';
+    row.addEventListener('click', () => openGame(e.id));
+    row.appendChild(el('div', 'ts-when', NBA ? new Date(e.date).toLocaleDateString([], {weekday: 'short', month: 'numeric', day: 'numeric'})
+      : `Wk ${(e.week || {}).number || ''} · ${new Date(e.date).toLocaleDateString([], {month: 'short', day: 'numeric'})}`));
+    const o = el('div', 'ts-opp');
+    o.appendChild(el('span', 'muted', me.homeAway === 'home' ? 'vs' : '@'));
+    const ol = ((opp.team || {}).logos || [])[0] || {};
+    if (ol.href || (opp.team || {}).logo) { const img = el('img'); img.alt = ''; img.src = ol.href || opp.team.logo; o.appendChild(img); }
+    o.appendChild(el('b', '', (opp.team || {}).shortDisplayName || (opp.team || {}).displayName || (opp.team || {}).abbreviation || 'TBD'));
+    row.appendChild(o);
+    const res = el('div', 'ts-res');
+    if (st.state === 'post') {
+      const won = me.winner, tie = !me.winner && !opp.winner;
+      res.appendChild(el('span', 'ts-wl ' + (won ? 'w' : tie ? 't' : 'l'), won ? 'W' : tie ? 'T' : 'L'));
+      res.appendChild(el('span', '', `${score(me)}–${score(opp)}`));
+    } else if (st.state === 'in') {
+      res.appendChild(el('span', 'sl-live-dot', ''));
+      res.appendChild(el('b', '', `${score(me) ?? ''}–${score(opp) ?? ''} · ${st.shortDetail}`));
+    } else {
+      const tv = (((c.broadcasts || [])[0] || {}).media || {}).shortName || '';
+      res.appendChild(el('span', 'muted', `${/TBD/.test(st.shortDetail || '') ? 'TBD' : timeLabel(e.date)}${tv ? ' · ' + tv : ''}`));
+    }
+    row.appendChild(res);
+    list.appendChild(row);
+  });
+  if (!list.children.length) list.appendChild(el('p', 'empty', 'No games found.'));
+  body.appendChild(list);
+  body.appendChild(el('p', 'note', 'Click a game for its plays and box score.'));
+  const now = list.querySelector('.ts-row.in, .ts-row.pre');
+  if (now) setTimeout(() => now.scrollIntoView({block: 'center'}), 0);
+}
+
+document.getElementById('tsched').addEventListener('click', e => { if (e.target.id === 'tsched') e.target.close(); });
 
 // ---------------------------------------------------------------- live fantasy matchups
 

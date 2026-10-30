@@ -90,6 +90,9 @@ class CalendarTests(unittest.TestCase):
         self.assertEqual(upcoming_week(date(2026, 9, 15), 2026), 2)  # Tuesday after Week 1
         self.assertEqual(upcoming_week(date(2026, 10, 27), 2026), 8)  # Tuesday after Week 7
         self.assertEqual(upcoming_week(date(2026, 10, 28), 2026), 8)
+        self.assertEqual(upcoming_week(date(2026, 10, 30), 2026), 8)  # Friday: Week 8's Sunday games are still ahead
+        self.assertEqual(upcoming_week(date(2026, 11, 2), 2026), 8)  # Monday night
+        self.assertEqual(upcoming_week(date(2026, 11, 3), 2026), 9)  # Tuesday morning switches
         self.assertEqual(upcoming_week(date(2027, 1, 20), 2026), 18)
 
 

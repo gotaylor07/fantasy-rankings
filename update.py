@@ -16,6 +16,7 @@ import sys
 import warnings
 from datetime import date, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 # Apple's bundled Python links LibreSSL; urllib3 warns about it on every run but works.
 warnings.filterwarnings("ignore", message="urllib3 v2 only supports OpenSSL")
@@ -115,7 +116,8 @@ def main() -> int:
         from rankings import espn_login
         espn_login.run(LEAGUES_FILE)
 
-    today = date.today()
+    # GitHub's servers run on UTC, which is already "tomorrow" on US evenings; use Eastern time.
+    today = datetime.now(ZoneInfo("America/New_York")).date()
     status = 0
     if args.sport in ("all", "football"):
         status |= run_football(args, today)

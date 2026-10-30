@@ -107,10 +107,10 @@ def kickoff(season: int) -> date:
 
 
 def upcoming_week(today: date, season: int) -> int:
-    """The week whose Thursday game is next (Tuesday after Week 7 -> 8)."""
-    start = kickoff(season)
-    if today <= start:
+    """The current NFL week. Weeks run Tuesday to Monday, so the site moves on to the
+    next week on Tuesday morning, after Monday night's game (Tuesday after Week 7 -> 8,
+    and it stays 8 through Monday night of Week 8)."""
+    week_one_tuesday = kickoff(season) - timedelta(days=2)
+    if today < week_one_tuesday:
         return 1
-    next_thursday = today + timedelta(days=(3 - today.weekday()) % 7)
-    week = (next_thursday - start).days // 7 + 1
-    return max(1, min(18, week))
+    return max(1, min(18, (today - week_one_tuesday).days // 7 + 1))
