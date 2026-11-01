@@ -31,6 +31,8 @@ Options: `--week 9` overrides the detected upcoming week, `--season 2026` overri
 | Rest of season | Sleeper (projected points summed through Week 18), FantasyPros ROS, FantasyCalc (redraft values). K and D/ST from Sleeper and FantasyPros |
 | Dynasty | FantasyCalc, KeepTradeCut, FantasyPros dynasty |
 
+The **Live leaders** tab next to Dynasty ranks this week's actual fantasy scorers at each position (football full PPR; basketball ESPN standard points, summed over the week's games), live from Sleeper's weekly stats; it refreshes every minute while games are on, and players in a game right now are highlighted.
+
 How the average works: each source is converted to a rank within each position, then a player's ranks are averaged across the sources that list them. A player needs to appear in at least two sources. If a source fails during a run, the others still publish and the page notes which one was missing. If every source fails for a ranking, the previous good board stays up.
 
 ## Basketball
@@ -102,7 +104,7 @@ Connected leagues are remembered in your browser (local storage), not in any fil
 
 How the league numbers work:
 
-- **Suggested lineup**: the highest-projected legal lineup for the upcoming week from Sleeper's full-PPR projections. Players on bye, Out, Doubtful or on IR are skipped. Rows that differ from your current lineup are highlighted.
+- **Suggested lineup**: once the week's games start, each player counts the points he has already scored plus the projection for what's left of his game, and players whose game has started are locked in place (a locked starter stays in his slot; a locked bench player can't be moved in), as in your league's app. Before then: the highest-projected legal lineup for the upcoming week from Sleeper's full-PPR projections. Players on bye, Out, Doubtful or on IR are skipped. Rows that differ from your current lineup are highlighted.
 - **Projected finishing records**: every remaining regular-season matchup is simulated 5,000 times, using each team's best projected lineup for that week (so bye weeks count). Projections are scaled to your league's scoring using points scored so far, and week-to-week randomness comes from how much scores have actually varied in your league.
 - **Roster value**: trades, pickups and position strengths all use one number: a roster's average weekly points from its best lineup, from the upcoming week through Week 17 (so fantasy playoffs count, and bye weeks count as zero). A player is worth what he adds to that, which is how position need comes in: a third good RB adds little if only two RBs can start. Position strengths count only each position's own slots, with FLEX as its own row, so a trade only moves the positions it touches.
 - **Suggested trades**: every one-for-one and two-for-one swap with every team is scored, and only trades that raise your number *and* don't lower theirs are shown, so the other team has a reason to say yes. If a trade leaves a team over its roster size, its lowest-value player is assumed dropped.
