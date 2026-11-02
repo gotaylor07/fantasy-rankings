@@ -35,7 +35,7 @@ window.applyPrefs(window.getPrefs());
   --card:#ffffff;--card-2:#f7f9fc;--text:#111827;--muted:#64748b;--line:#e2e8f0;
   --accent:#1d63ed;--accent-2:#0ea5a4;--accent-text:#fff;--row:#f8fafc;
   --hover:color-mix(in srgb,var(--accent) 7%,var(--card));--chg:color-mix(in srgb,var(--accent) 10%,var(--card));
-  --warn-bg:#fff4d6;--warn-text:#7a5200;--good:#15803d;--bad:#c2261d;
+  --warn-bg:#fff4d6;--warn-text:#7a5200;--good:#15803d;--bad:#c2261d;--proj:#a16207;
   --backdrop:rgba(15,23,42,.5);--shadow:0 1px 2px rgba(15,23,42,.05),0 6px 20px rgba(15,23,42,.06);
   --radius:14px;
 }
@@ -44,7 +44,7 @@ window.applyPrefs(window.getPrefs());
   --card:#141b25;--card-2:#18212d;--text:#e8edf4;--muted:#8e9aab;--line:#243042;
   --accent:#5b9bff;--accent-2:#2dd4bf;--accent-text:#08111f;--row:#161e29;
   --hover:color-mix(in srgb,var(--accent) 10%,var(--card));--chg:color-mix(in srgb,var(--accent) 16%,var(--card));
-  --warn-bg:#3a2f0b;--warn-text:#f6dc8f;--good:#4ade80;--bad:#ff7b72;
+  --warn-bg:#3a2f0b;--warn-text:#f6dc8f;--good:#4ade80;--bad:#ff7b72;--proj:#facc15;
   --backdrop:rgba(0,0,0,.65);--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.25);
 }
 *{box-sizing:border-box}
@@ -381,6 +381,9 @@ tr.playing .ptag .plink{background:color-mix(in srgb,#ef4444 16%,transparent);bo
 .pl-live-row{display:flex;align-items:center;gap:14px;margin-top:6px}
 .pl-live-pts{font-size:34px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .badge.lock{color:var(--muted);background:var(--card-2)}
+.proj-cell{color:var(--proj);font-weight:700}
+tr.cur-week td{background:color-mix(in srgb,var(--accent) 6%,var(--card))}
+tr.cur-week.live td{background:color-mix(in srgb,#ef4444 8%,var(--card))}
 @keyframes g-fall{to{transform:translateY(105vh) rotate(720deg);opacity:.9}}
 @media (prefers-reduced-motion: reduce){.g-enter,.g-slot.filled{animation:none}}
 .mu-mini{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -918,9 +921,48 @@ function loadHistory(onDone) {
   document.head.appendChild(s);
 }
 
-function seasonLog(p, games, lastWeek, isCurrent, fieldIndex) {
+/** This week's games for a player's current-season log: played or live (from Sleeper's weekly stats), or not
+ *  started yet (projected). Football has one; basketball can have several, minus any already in the saved log. */
+function thisWeekGames(sid, p) {
+  const r = weekStats.rows[sid];
+  if (!NBA) {
+    if (BYES[p.t] === D.week) return [{kind: 'bye'}];
+    const s = teamLive(p.t);
+    const g = (GAMES[p.t] || {})[String(D.week)];
+    if (r && r.line) return [{kind: s && s.state === 'in' ? 'live' : 'played', row: r.line, detail: s ? s.detail : ''}];
+    if (s && s.state === 'in') return [{kind: 'live', row: null, detail: s.detail, opp: g ? g[0] : ''}];
+    if (s && s.state === 'post') return [{kind: 'dnp', opp: g ? g[0] : ''}];
+    return [{kind: 'proj', proj: p.proj[String(D.week)], opp: g ? g[0] : '', detail: s ? s.detail : ''}];
+  }
+  const logged = new Set(p.log.map(g => g[0]));
+  const out = [];
+  ((r && r.list) || []).forEach(x => {
+    if (logged.has(x.date)) return;
+    const s = teamLive(p.t, x.date);
+    out.push({kind: s && s.state === 'in' ? 'live' : 'played', date: x.date, row: [x.date, x.opp].concat(x.line), detail: s ? s.detail : ''});
+  });
+  const wk = CAL.weeks[String(D.week)];
+  if (wk) gamesOf(p.t).filter(g => g[0] >= TODAY && g[0] <= wk[1] && !logged.has(g[0]) && !out.some(o => o.date === g[0])).forEach(g => {
+    const s = teamLive(p.t, g[0]);
+    if (s && s.state !== 'pre') return;
+    out.push({kind: 'proj', date: g[0], opp: g[1], proj: nbaPoints(p.nx[g[0]] || p.pg, D.scoring), detail: s ? s.detail : ''});
+  });
+  return out;
+}
+
+function projCell(text, span) {
+  const c = td('', 'l');
+  c.colSpan = span;
+  c.appendChild(el('span', 'proj-cell', text));
+  return c;
+}
+
+function seasonLog(p, games, lastWeek, isCurrent, fieldIndex, sid) {
   const box = el('div');
   const G = fieldIndex;
+  const cur = isCurrent && sid ? thisWeekGames(sid, p) : [];
+  // A finished game this week counts toward the season numbers; one in progress doesn't yet.
+  games = games.concat(cur.filter(x => x.kind === 'played' && x.row).map(x => x.row));
   const cols = (LOG_COLS[p.p] || []).map(([label, f]) => [label, g => f(remap(g, G))]);
   const gp = games.length;
   const total = games.reduce((s, g) => s + g[2], 0);
@@ -959,6 +1001,29 @@ function seasonLog(p, games, lastWeek, isCurrent, fieldIndex) {
     }
     rows.push(tr);
   }
+  cur.forEach(x => {
+    const tr = el('tr', 'cur-week' + (x.kind === 'live' ? ' live' : ''));
+    tr.appendChild(td(D.week, 'rank'));
+    const span = 3 + cols.length;
+    if (x.kind === 'bye') { tr.appendChild(Object.assign(td('Bye', 'l muted'), {colSpan: span})); rows.push(tr); return; }
+    const opp = td('', 'l');
+    if (x.kind === 'live') opp.appendChild(el('span', 'sl-live-dot', ''));
+    const o = x.row ? x.row[1] : x.opp;
+    opp.appendChild(document.createTextNode(o ? 'vs ' + o : ''));
+    const tag = x.kind === 'played' ? 'Final' : x.kind === 'live' ? x.detail : x.kind === 'proj' ? x.detail : '';
+    if (tag) opp.appendChild(el('span', 'desc', ' · ' + tag));
+    tr.appendChild(opp);
+    if (x.kind === 'proj') tr.appendChild(projCell(x.proj !== undefined ? `Proj: ${fmt(x.proj)}` : 'Proj: –', span - 1));
+    else if (x.kind === 'dnp') tr.appendChild(Object.assign(td('Did not play', 'l muted'), {colSpan: span - 1}));
+    else if (!x.row) tr.appendChild(Object.assign(td('0.0 so far', 'l avg'), {colSpan: span - 1}));
+    else {
+      const g = x.row;
+      tr.appendChild(td(fmt(g[2]), 'avg'));
+      tr.appendChild(td(g[3] === null || g[3] === undefined ? '–' : g[3] + '%'));
+      cols.forEach(([, f]) => tr.appendChild(td(f(g))));
+    }
+    rows.push(tr);
+  });
   let foot = null;
   if (gp) {
     foot = el('tr');
@@ -971,7 +1036,7 @@ function seasonLog(p, games, lastWeek, isCurrent, fieldIndex) {
     };
     cols.forEach(([label]) => foot.appendChild(td(totals[label] !== undefined ? totals[label] : '')));
   }
-  if (lastWeek < 1) box.appendChild(el('p', 'empty', 'No games played yet this season.'));
+  if (lastWeek < 1 && !cur.length) box.appendChild(el('p', 'empty', 'No games played yet this season.'));
   else box.appendChild(table([['Wk', 'rank'], ['Opp', 'l'], 'PPR', 'Snap %', ...cols.map(c => c[0])], rows, foot));
   return box;
 }
@@ -999,8 +1064,10 @@ function gameDate(d, season) {
   return `${+d.slice(0, 2) >= 8 ? season : +season + 1}-${d}`;
 }
 
-function nbaSeasonLog(p, games, season, isCurrent) {
+function nbaSeasonLog(p, games, season, isCurrent, sid) {
   const box = el('div');
+  const cur = isCurrent && sid ? thisWeekGames(sid, p) : [];
+  games = games.concat(cur.filter(x => x.kind === 'played').map(x => x.row));
   const gp = games.length;
   const fp = g => nbaPoints(g.slice(2), D.scoring);
   const avg = f => (gp ? games.reduce((s, g) => s + (f(g.slice(2)) || 0), 0) / gp : null);
@@ -1017,16 +1084,33 @@ function nbaSeasonLog(p, games, season, isCurrent) {
     if (nxt) stat(fmt(nbaPoints(p.nx[nxt] || p.pg, D.scoring)), `Next game proj.`);
   }
   box.appendChild(stats);
-  if (!gp) { box.appendChild(el('p', 'empty', isCurrent ? 'No games played yet this season.' : 'No games this season.')); return box; }
-  const rows = games.slice().reverse().map(g => {
-    const tr = el('tr');
+  if (!gp && !cur.length) { box.appendChild(el('p', 'empty', isCurrent ? 'No games played yet this season.' : 'No games this season.')); return box; }
+  const upcoming = cur.filter(x => x.kind === 'proj').sort((a, b) => b.date.localeCompare(a.date)).map(x => {
+    const tr = el('tr', 'cur-week');
+    tr.appendChild(td(new Date(x.date + 'T12:00:00').toLocaleDateString([], {month: 'short', day: 'numeric'}), 'l muted'));
+    const opp = td(x.opp ? 'vs ' + x.opp : '', 'l');
+    if (x.detail) opp.appendChild(el('span', 'desc', ' · ' + x.detail));
+    tr.appendChild(opp);
+    tr.appendChild(projCell(`Proj: ${fmt(x.proj)}`, 1 + NBA_COLS.length));
+    return tr;
+  });
+  const live = cur.filter(x => x.kind === 'live').map(x => x.row);
+  const ordered = games.concat(live).sort((a, b) => gameDate(a[0], season).localeCompare(gameDate(b[0], season)));
+  const rows = upcoming.concat(ordered.slice().reverse().map(g => {
+    const isLive = live.includes(g);
+    const thisWeek = isLive || cur.some(x => x.row === g);
+    const tr = el('tr', thisWeek ? 'cur-week' + (isLive ? ' live' : '') : '');
     const d = new Date(gameDate(g[0], season) + 'T12:00:00');
     tr.appendChild(td(d.toLocaleDateString([], {month: 'short', day: 'numeric'}), 'l muted'));
-    tr.appendChild(td(g[1] ? 'vs ' + g[1] : '', 'l'));
+    const opp = td('', 'l');
+    if (isLive) opp.appendChild(el('span', 'sl-live-dot', ''));
+    opp.appendChild(document.createTextNode(g[1] ? 'vs ' + g[1] : ''));
+    if (isLive) opp.appendChild(el('span', 'desc', ' · ' + ((cur.find(x => x.row === g) || {}).detail || 'live')));
+    tr.appendChild(opp);
     tr.appendChild(td(fmt(fp(g)), 'avg'));
     NBA_COLS.forEach(([, f]) => tr.appendChild(td(f(g.slice(2)))));
     return tr;
-  });
+  }));
   const foot = el('tr');
   foot.appendChild(td('Per game', 'l')); foot.appendChild(td(''));
   foot.appendChild(td(fmt(avg(l => nbaPoints(l, D.scoring)))));
@@ -1069,7 +1153,7 @@ function renderPlayerBodyNba(sid, p) {
   body.appendChild(bar);
   const scoringNote = 'Fantasy points use ESPN standard points scoring.';
   if (playerSeason === String(D.season)) {
-    body.appendChild(nbaSeasonLog(p, p.log, D.season, true));
+    body.appendChild(nbaSeasonLog(p, p.log, D.season, true, sid));
     body.appendChild(el('p', 'foot', `${D.season_label} regular season so far, newest game first, from Sleeper box scores. ${scoringNote}`));
     return;
   }
@@ -1105,7 +1189,7 @@ function renderPlayerBody(sid, p) {
   body.appendChild(bar);
 
   if (playerSeason === String(D.season)) {
-    body.appendChild(seasonLog(p, p.log, LAST_DONE, true, F));
+    body.appendChild(seasonLog(p, p.log, LAST_DONE, true, F, sid));
     body.appendChild(el('p', 'foot', `${D.season} regular season through Week ${LAST_DONE}, from Sleeper box scores. Snap % is the share of the team's offensive snaps.`));
   } else {
     const s = past[playerSeason];
@@ -1129,6 +1213,7 @@ function openPlayer(sid, push = true) {
   if (push) setHash({player: sid});
   if (!NBA) loadHistory(() => { if (dlg.open && readHash().player === sid) renderPlayerBody(sid, p); });
   playerLiveLoop(sid);
+  refreshWeekStats().then(changed => { if (changed && dlg.open && readHash().player === sid) renderPlayerBody(sid, p); });
 }
 
 document.getElementById('plog').addEventListener('click', e => { if (e.target.id === 'plog') e.target.close(); });
@@ -4448,6 +4533,7 @@ async function playerLiveLoop(sid) {
   if (!dlg.open || readHash().player !== sid) return;
   try { plLive.data = await playerLiveLine(sid); } catch (e) { /* keep the last numbers */ }
   if (!dlg.open || plLive.sid !== sid) return;
+  if (plLive.data && await refreshWeekStats()) renderPlayerBody(sid, P[sid]);   // this week's row in the log moves too
   paintPlayerLive();
   if (plLive.data) plLive.timer = setTimeout(() => playerLiveLoop(sid), 30000);
 }
@@ -4503,11 +4589,15 @@ async function refreshWeekStats(force) {
       if (e.opponent) r.opps.push(e.opponent);
       if (NBA) {
         const line = sleeperNbaLine(st);
+        (r.list = r.list || []).push({date: e.date, opp: e.opponent || '', line});
         r.pts += nbaPoints(line, D.scoring);
         ['pts', 'reb', 'ast', 'stl', 'blk', 'tpm'].forEach(k => { r.tot[k] = (r.tot[k] || 0) + (line[FI[k]] || 0); });
       } else {
         r.pts += st.pts_ppr || 0;
         r.text = footballStatText(st, r.pos);
+        // Same shape as a game-log row: [week, opponent, PPR, snap %, ...box score]
+        const snap = st.off_snp && st.tm_off_snp ? Math.round(100 * st.off_snp / st.tm_off_snp) : null;
+        r.line = [D.week, e.opponent || '', st.pts_ppr || 0, snap].concat(FIELDS.map(f => st[f] || 0));
       }
     });
     Object.values(out).forEach(r => {
