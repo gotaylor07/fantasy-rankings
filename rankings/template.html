@@ -1315,6 +1315,14 @@ function parseSleeper(bundle) {
   return out;
 }
 
+/** A player's actual points in ESPN's own (league) scoring over the given scoring periods; null if none recorded. */
+function espnActual(info, periods) {
+  const rows = (info.stats || []).filter(st => st.statSourceId === 0 && periods.has(st.scoringPeriodId));
+  return rows.length ? rows.reduce((s, st) => s + (st.appliedTotal || 0), 0) : null;
+}
+// ESPN leaves totalPoints at 0 until a week is final; while it's under way the score is totalPointsLive.
+const espnScore = side => side.totalPoints || side.totalPointsLive || 0;
+
 function parseEspn(raw, myTeam) {
   const settings = raw.settings || {};
   const counts = (settings.rosterSettings || {}).lineupSlotCounts || {};
@@ -1332,7 +1340,8 @@ function parseEspn(raw, myTeam) {
       const team = ESPN_TEAMS[info.proTeamId] || '';
       const sid = pos === 'DEF' ? (P[team] ? team : null) : (ids[String(e.playerId)] || keys[normName(info.fullName || '') + '|' + pos] || null);
       const inj = ESPN_INJ[info.injuryStatus] || (sid && P[sid] ? P[sid].i : null);
-      const pl = {sid, name: sid && P[sid] ? P[sid].n : (info.fullName || `Player #${e.playerId}`), pos, team, inj};
+      const pl = {sid, name: sid && P[sid] ? P[sid].n : (info.fullName || `Player #${e.playerId}`), pos, team, inj,
+                  live: espnActual(info, new Set([D.week]))};
       players.push(pl);
       const slot = ESPN_SLOTS[e.lineupSlotId];
       if (slot) current.push({slot, pl});
@@ -1354,7 +1363,7 @@ function parseEspn(raw, myTeam) {
   const regWeeks = []; for (let mp = 1; mp <= regPeriods; mp++) regWeeks.push(weekOf(mp));
   const schedule = (raw.schedule || [])
     .filter(m => m.home && m.away && m.away.teamId != null && m.matchupPeriodId <= regPeriods)
-    .map(m => ({week: weekOf(m.matchupPeriodId), a: m.home.teamId, b: m.away.teamId, ap: m.home.totalPoints || 0, bp: m.away.totalPoints || 0}));
+    .map(m => ({week: weekOf(m.matchupPeriodId), a: m.home.teamId, b: m.away.teamId, ap: espnScore(m.home), bp: espnScore(m.away)}));
   return {
     platform: 'ESPN', name: settings.name || `ESPN league ${raw.id}`, slots, teams, schedule, regWeeks,
     playoffTeams: sched.playoffTeamCount || 4, myTeam,
@@ -1382,7 +1391,7 @@ async function loadSleeper(leagueId) {
   return parseSleeper({league, users, rosters, matchups, me: (store.get().sleeper || {}).user_id});
 }
 
-const ESPN_VIEWS = ['mSettings', 'mTeam', 'mRoster', 'mMatchupScore'];
+const ESPN_VIEWS = ['mSettings', 'mTeam', 'mRoster', 'mMatchupScore', 'mLiveScoring'];
 async function loadEspn(leagueId, myTeam) {
   const game = NBA ? `fba/seasons/${D.espn_season}` : `ffl/seasons/${D.season}`;
   const url = `https://lm-api-reads.fantasy.espn.com/apis/v3/games/${game}/segments/0/leagues/${leagueId}?` +
@@ -1514,6 +1523,11 @@ const ESPN_NBA_INJ = {OUT: 'Out', DAY_TO_DAY: 'DTD', QUESTIONABLE: 'Questionable
 
 function parseEspnNba(raw, myTeam) {
   const settings = raw.settings || {};
+  const sched0 = settings.scheduleSettings || {};
+  const dateOf0 = sp => (D.espn_periods || {})[String(sp)];
+  const curMp = Object.entries(sched0.matchupPeriods || {}).map(([mp, sps]) => [+mp, sps])
+    .sort((a, b) => a[0] - b[0]).find(([, sps]) => sps.some(sp => (dateOf0(sp) || '') >= TODAY));
+  const curPeriods = new Set(curMp ? curMp[1] : []);
   const counts = (settings.rosterSettings || {}).lineupSlotCounts || {};
   const slots = [];
   for (let id = 0; id <= 11; id++) for (let i = 0; i < (counts[id] || 0); i++) slots.push(ESPN_NBA_SLOTS[id]);
@@ -1528,7 +1542,7 @@ function parseEspnNba(raw, myTeam) {
       const pl = {sid, name: known ? P[sid].n : (info.fullName || `Player #${e.playerId}`),
                   pos: (el[0] || (known && P[sid].p) || ''), el: el.length ? el : (known ? P[sid].el : []),
                   team: known ? P[sid].t : (ESPN_NBA_TEAMS[info.proTeamId] || ''),
-                  inj: ESPN_NBA_INJ[info.injuryStatus] || (known ? P[sid].i : null)};
+                  inj: ESPN_NBA_INJ[info.injuryStatus] || (known ? P[sid].i : null), live: espnActual(info, curPeriods)};
       players.push(pl);
       const slot = ESPN_NBA_SLOTS[e.lineupSlotId];
       if (slot) current.push({slot, pl});
@@ -1547,7 +1561,7 @@ function parseEspnNba(raw, myTeam) {
   const regPeriods = sched.matchupPeriodCount || Math.max(0, ...(raw.schedule || []).map(m => m.matchupPeriodId));
   const regWeeks = []; for (let mp = 1; mp <= regPeriods; mp++) regWeeks.push(mp);
   const schedule = (raw.schedule || []).filter(m => m.home && m.away && m.away.teamId != null && m.matchupPeriodId <= regPeriods)
-    .map(m => ({week: m.matchupPeriodId, a: m.home.teamId, b: m.away.teamId, ap: m.home.totalPoints || 0, bp: m.away.totalPoints || 0}));
+    .map(m => ({week: m.matchupPeriodId, a: m.home.teamId, b: m.away.teamId, ap: espnScore(m.home), bp: espnScore(m.away)}));
   const cur = regWeeks.find(w => (weekDates[w] || []).slice(-1)[0] >= TODAY) || regPeriods + 1;
   return {platform: 'ESPN', name: settings.name || `ESPN league ${raw.id}`, slots, teams, schedule, regWeeks,
           playoffTeams: sched.playoffTeamCount || 4, myTeam, scoring: Object.keys(scoring).length ? scoring : D.scoring,
@@ -2425,8 +2439,8 @@ function playerCell(pl, week) {
 
 function lockBadge(pl) {
   const s = teamLive((P[pl.sid] || {}).t || pl.team);
-  const r = weekStats.rows[pl.sid];
-  return el('span', 'badge lock', `🔒 ${s && s.state === 'post' ? 'Final' : 'Live'}${r ? ` · ${fmt(r.pts)} pts` : ''}`);
+  const has = pl.live != null || weekStats.rows[pl.sid];
+  return el('span', 'badge lock', `🔒 ${s && s.state === 'post' ? 'Final' : 'Live'}${has ? ` · ${fmt(weekActual(pl))} pts` : ''}`);
 }
 
 function renderLineup(L, team) {
@@ -2652,8 +2666,16 @@ function renderMatchupTab(ctx, box) {
     col.appendChild(el('h3', '', t.name));
     let rows, head;
     if (NBA) {
-      head = [['Player', 'l'], 'Games', 'Starts', 'Proj'];
-      rows = lu.rows.map(r => { const tr = el('tr', playingNow(r.pl) ? 'playing' : ''); tr.appendChild(playerCell(r.pl)); tr.appendChild(td(r.games)); tr.appendChild(td(r.starts)); tr.appendChild(td(fmt(r.pts * A.scale), 'avg')); return tr; });
+      const livePts = leagueLive.players[t.id] || {};
+      const soFar = pl => (pl.sid in livePts ? livePts[pl.sid] : pl.live);
+      const showSoFar = live || lu.rows.some(r => soFar(r.pl) != null);
+      head = [['Player', 'l'], ...(showSoFar ? ['So far'] : []), 'Games', 'Starts', 'Proj'];
+      rows = lu.rows.map(r => {
+        const tr = el('tr', playingNow(r.pl) ? 'playing' : ''); tr.appendChild(playerCell(r.pl));
+        if (showSoFar) { const v = soFar(r.pl); tr.appendChild(td(v == null ? '–' : fmt(v), 'avg')); }
+        tr.appendChild(td(r.games)); tr.appendChild(td(r.starts)); tr.appendChild(td(fmt(r.pts * A.scale), showSoFar ? 'muted' : 'avg'));
+        return tr;
+      });
     } else if (lu.live) {
       head = [['Slot', 'l'], ['Player', 'l'], ['Game', 'l'], 'Pts', 'Left'];
       rows = lu.rows.map(r => {
@@ -2671,7 +2693,10 @@ function renderMatchupTab(ctx, box) {
     }
     const foot = el('tr');
     foot.appendChild(td('Total', 'l'));
-    if (NBA) { foot.appendChild(td('')); foot.appendChild(td(lu.rows.reduce((s, r) => s + r.starts, 0))); }
+    if (NBA) {
+      if (head.includes('So far')) foot.appendChild(td(fmt(t.id === o.teamA.id ? o.scoreA : o.scoreB)));
+      foot.appendChild(td('')); foot.appendChild(td(lu.rows.reduce((s, r) => s + r.starts, 0)));
+    }
     else if (lu.live) { foot.appendChild(td('')); foot.appendChild(td('')); foot.appendChild(td(fmt(t.id === o.teamA.id ? o.scoreA : o.scoreB))); }
     else foot.appendChild(td(''));
     foot.appendChild(td(fmt(lu.total * A.scale)));
@@ -4500,7 +4525,8 @@ function gameStarted(pl) {
   return !!s && s.state !== 'pre';
 }
 /** Football this week: points already scored plus the projection for what's left of the game. */
-const weekValue = (pl, w) => ((pl && pl.sid && weekStats.rows[pl.sid] && weekStats.rows[pl.sid].pts) || 0) + proj(pl, w, true);
+const weekActual = pl => (pl && pl.live != null ? pl.live : (pl && pl.sid && weekStats.rows[pl.sid] ? weekStats.rows[pl.sid].pts : 0)) || 0;   // ESPN leagues report their own
+const weekValue = (pl, w) => weekActual(pl) + proj(pl, w, true);
 
 function renderLiveLeaders() {
   document.getElementById('desc').textContent = NBA
@@ -4588,7 +4614,8 @@ function liveBreakdown(L, team, w) {
   const rows = team.current.filter(c => SLOT_ELIG[c.slot]).map(c => {
     const pl = c.pl;
     const s = pl ? teamLive((P[pl.sid] || {}).t || pl.team) : null;
-    return {slot: c.slot, pl, pts: pl ? proj(pl, w, true) : 0, live: pl && pl.sid in pts ? pts[pl.sid] : null, status: s ? s.detail : (pl ? 'BYE' : '')};
+    const live = pl && pl.sid in pts ? pts[pl.sid] : (pl && pl.live != null ? pl.live : null);   // Sleeper's, else ESPN's
+    return {slot: c.slot, pl, pts: pl ? proj(pl, w, true) : 0, live, status: s ? s.detail : (pl ? 'BYE' : '')};
   });
   const starting = new Set(rows.filter(r => r.pl).map(r => plKey(r.pl)));
   return {rows, bench: team.players.filter(pl => !starting.has(plKey(pl))).map(pl => ({pl, pts: proj(pl, w, true)})),

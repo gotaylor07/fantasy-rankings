@@ -20,7 +20,7 @@ ESPN_URL = "https://lm-api-reads.fantasy.espn.com/apis/v3/games/{game}/seasons/{
 # ESPN's game codes; leagues.json entries say which sport with "sport" (football if left out).
 ESPN_GAMES = {"football": "ffl", "basketball": "fba"}
 # Same views the page requests for public leagues.
-ESPN_VIEWS = ["mSettings", "mTeam", "mRoster", "mMatchupScore"]
+ESPN_VIEWS = ["mSettings", "mTeam", "mRoster", "mMatchupScore", "mLiveScoring"]
 
 
 def load_config(path: Path) -> dict:
@@ -57,6 +57,10 @@ def trim_espn(raw: dict) -> dict:
         entries = []
         for e in (t.get("roster") or {}).get("entries") or []:
             pl = ((e.get("playerPoolEntry") or {}).get("player")) or {}
+            # Actual points per scoring period (statSourceId 0), in the league's scoring: the page uses the current week's.
+            actual = [{"scoringPeriodId": st.get("scoringPeriodId"), "statSourceId": 0, "appliedTotal": st.get("appliedTotal")}
+                      for st in pl.get("stats") or []
+                      if isinstance(st, dict) and st.get("statSourceId") == 0 and st.get("scoringPeriodId")]
             entries.append(
                 {
                     "playerId": e.get("playerId"),
@@ -65,7 +69,7 @@ def trim_espn(raw: dict) -> dict:
                         "player": {
                             k: pl.get(k)
                             for k in ("fullName", "defaultPositionId", "proTeamId", "injuryStatus", "eligibleSlots")
-                        }
+                        } | {"stats": actual}
                     },
                 }
             )
@@ -96,8 +100,9 @@ def trim_espn(raw: dict) -> dict:
             {
                 "matchupPeriodId": m.get("matchupPeriodId"),
                 "winner": m.get("winner"),
-                "home": {k: (m.get("home") or {}).get(k) for k in ("teamId", "totalPoints")},
-                "away": {k: (m.get("away") or {}).get(k) for k in ("teamId", "totalPoints")},
+                # ESPN leaves totalPoints at 0 until a week is final; the running score is totalPointsLive.
+                "home": {k: (m.get("home") or {}).get(k) for k in ("teamId", "totalPoints", "totalPointsLive")},
+                "away": {k: (m.get("away") or {}).get(k) for k in ("teamId", "totalPoints", "totalPointsLive")},
             }
             for m in raw.get("schedule") or []
         ],

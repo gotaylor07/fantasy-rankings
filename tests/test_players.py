@@ -94,15 +94,21 @@ class EspnTrimTests(unittest.TestCase):
             "members": [{"id": "{A}", "displayName": "a", "email": "secret@example.com"}],
             "teams": [{"id": 1, "name": "T", "owners": ["{A}"], "roster": {"entries": [
                 {"playerId": 5, "lineupSlotId": 0, "playerPoolEntry": {"player": {
-                    "fullName": "Q B", "defaultPositionId": 1, "proTeamId": 3, "injuryStatus": "ACTIVE", "stats": [1, 2]}}}]}}],
-            "schedule": [{"matchupPeriodId": 1, "winner": "HOME", "home": {"teamId": 1, "totalPoints": 100, "rosterForMatchupPeriod": {}},
+                    "fullName": "Q B", "defaultPositionId": 1, "proTeamId": 3, "injuryStatus": "ACTIVE",
+                    "stats": [{"scoringPeriodId": 8, "statSourceId": 0, "appliedTotal": 21.5, "stats": {"3": 250}},
+                              {"scoringPeriodId": 8, "statSourceId": 1, "appliedTotal": 18.0},
+                              {"scoringPeriodId": 0, "statSourceId": 0, "appliedTotal": 140.0}]}}}]}}],
+            "schedule": [{"matchupPeriodId": 1, "winner": "HOME", "home": {"teamId": 1, "totalPoints": 0, "totalPointsLive": 63.6, "rosterForMatchupPeriod": {}},
                           "away": {"teamId": 2, "totalPoints": 90}}],
         }
         t = leagues.trim_espn(raw)
         self.assertNotIn("email", t["members"][0])
-        self.assertNotIn("stats", t["teams"][0]["roster"]["entries"][0]["playerPoolEntry"]["player"])
+        # Only actual points per week are kept (not projections or season totals, nor the raw stat breakdown).
+        self.assertEqual(t["teams"][0]["roster"]["entries"][0]["playerPoolEntry"]["player"]["stats"],
+                         [{"scoringPeriodId": 8, "statSourceId": 0, "appliedTotal": 21.5}])
         self.assertEqual(t["settings"]["scheduleSettings"]["playoffTeamCount"], 6)
-        self.assertEqual(t["schedule"][0]["home"], {"teamId": 1, "totalPoints": 100})
+        # A week in progress keeps ESPN's live total (totalPoints stays 0 until it's final).
+        self.assertEqual(t["schedule"][0]["home"], {"teamId": 1, "totalPoints": 0, "totalPointsLive": 63.6})
 
     def test_config_team_lookup_and_errors(self):
         data = {"teams": [{"id": 1, "owners": ["{A}"]}, {"id": 2, "owners": ["{B}"]}]}
