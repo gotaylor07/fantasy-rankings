@@ -2046,7 +2046,7 @@ async function renderLeague() {
   const profiles = Object.fromEntries(L.teams.map(t => [t.id, profile(L, t.players)]));
   const ctx = {L, A, active, me, profiles, ranks: positionRanks(L, profiles)};
   leagueCtx = ctx;
-  if (weekUnderway() && (!leagueLive.at || Date.now() - leagueLive.at > 55000) && !leagueLive.busy) setTimeout(liveLeagueRefresh, 0);
+  if ((weekUnderway() || leagueSub === 'matchup') && (!leagueLive.at || Date.now() - leagueLive.at > 55000) && !leagueLive.busy) setTimeout(liveLeagueRefresh, 0);
   const content = el('div');
   body.appendChild(content);
   if (leagueSub === 'matchup') renderMatchupTab(ctx, content);
@@ -2642,7 +2642,7 @@ function lineupBreakdown(L, team, w) {
 function matchupOdds(L, A, m, w) {
   const teamA = L.teams.find(t => t.id === m.a), teamB = L.teams.find(t => t.id === m.b);
   const live = w === curWeek(L);
-  const started = live && !NBA && weekUnderway();
+  const started = live && !NBA;   // this week: the lineups each team has set
   const la = started ? liveBreakdown(L, teamA, w) : lineupBreakdown(L, teamA, w);
   const lb = started ? liveBreakdown(L, teamB, w) : lineupBreakdown(L, teamB, w);
   const scoreA = live ? m.ap : 0, scoreB = live ? m.bp : 0;
@@ -2693,12 +2693,35 @@ function matchupSummary(ctx, onOpen) {
   return card;
 }
 
+let matchupWeek = {key: null, week: null};   // the week on screen in the Matchup tab
+
 function renderMatchupTab(ctx, box) {
   const {L, A, me} = ctx;
-  const w = curWeek(L);
-  const m = weekMatchup(L, me.id, w);
-  const s = section(`Week ${w} matchup`);
+  const cur = curWeek(L);
+  const last = Math.max(cur, ...L.regWeeks);
+  if (matchupWeek.key !== ctx.active.key || matchupWeek.week == null || matchupWeek.week < cur || matchupWeek.week > last) {
+    matchupWeek = {key: ctx.active.key, week: cur};
+  }
+  const w = matchupWeek.week;
+  const s = section(w === cur ? `Week ${w} matchup` : `Week ${w} matchup · projected`);
   box.appendChild(s);
+  const nav = el('div', 'sl-weeknav');
+  const step = d => { matchupWeek.week = Math.min(last, Math.max(cur, w + d)); renderLeague(); };
+  const prev = el('button', 'btn ghost sl-arrow', '‹'); prev.type = 'button'; prev.setAttribute('aria-label', 'Previous week');
+  prev.disabled = w <= cur; prev.addEventListener('click', () => step(-1));
+  const next = el('button', 'btn ghost sl-arrow', '›'); next.type = 'button'; next.setAttribute('aria-label', 'Next week');
+  next.disabled = w >= last; next.addEventListener('click', () => step(1));
+  const lab = el('div', 'sl-weeklabel');
+  lab.appendChild(el('b', '', `Week ${w}`));
+  lab.appendChild(el('span', 'desc', w === cur ? 'This week' : `${w - cur} week${w - cur === 1 ? '' : 's'} ahead`));
+  nav.append(prev, lab, next);
+  if (w !== cur) {
+    const back = el('button', 'btn ghost', 'Back to this week'); back.type = 'button';
+    back.addEventListener('click', () => { matchupWeek.week = cur; renderLeague(); });
+    nav.appendChild(back);
+  }
+  s.appendChild(nav);
+  const m = weekMatchup(L, me.id, w);
   if (!m) { s.appendChild(el('p', 'empty', `${me.name} has no regular-season matchup in Week ${w}.`)); return; }
   const o = matchupOdds(L, A, m, w);
   const mine = o.teamA.id === me.id;
@@ -2719,9 +2742,11 @@ function renderMatchupTab(ctx, box) {
   }
   s.appendChild(el('p', 'desc', NBA
     ? `Projected final scores${live ? ' (points so far plus each remaining day\'s best lineup)' : ' from each day\'s best lineup'}, using this league's scoring. Win chances allow for how much weekly scores have varied in this league.`
-    : o.started
+    : o.started && weekUnderway()
       ? `Points so far plus what's left: each starter's projection scaled by how much of his game remains${A.scale !== 1 ? ` (×${A.scale.toFixed(2)} to this league's scoring)` : ''}. Win chances tighten as games finish.`
-      : `Projected scores from each team's best lineup${A.scale !== 1 ? `, scaled ×${A.scale.toFixed(2)} to this league's scoring` : ''}. Win chances allow for how much weekly scores have varied in this league.`));
+      : o.started
+        ? `Projected from the lineups each team has set for this week${A.scale !== 1 ? `, scaled ×${A.scale.toFixed(2)} to this league's scoring` : ''}. Lineup changes show up within about a minute.`
+        : `Projected from each team's best lineup for Week ${w}: the players projected to score the most${A.scale !== 1 ? `, scaled ×${A.scale.toFixed(2)} to this league's scoring` : ''}. Bye weeks and injuries count.`));
 
   const score = el('div', 'mu-score');
   sides.forEach(([t, , sofar, pts, win], i) => {
@@ -2761,6 +2786,16 @@ function renderMatchupTab(ctx, box) {
         tr.appendChild(td(r.games)); tr.appendChild(td(r.starts)); tr.appendChild(td(fmt(r.pts * A.scale), showSoFar ? 'muted' : 'avg'));
         return tr;
       });
+    } else if (lu.live && !weekUnderway()) {
+      head = [['Slot', 'l'], ['Player', 'l'], ['Game', 'l'], 'Proj'];
+      rows = lu.rows.map(r => {
+        const tr = el('tr');
+        tr.appendChild(td(SLOT_LABEL[r.slot] || r.slot, 'l muted'));
+        tr.appendChild(playerCell(r.pl, w));
+        tr.appendChild(td(r.status || '', 'l muted'));
+        tr.appendChild(td(fmt(r.pts * A.scale), 'avg'));
+        return tr;
+      });
     } else if (lu.live) {
       head = [['Slot', 'l'], ['Player', 'l'], ['Game', 'l'], 'Pts', 'Left'];
       rows = lu.rows.map(r => {
@@ -2782,6 +2817,7 @@ function renderMatchupTab(ctx, box) {
       if (head.includes('So far')) foot.appendChild(td(fmt(t.id === o.teamA.id ? o.scoreA : o.scoreB)));
       foot.appendChild(td('')); foot.appendChild(td(lu.rows.reduce((s, r) => s + r.starts, 0)));
     }
+    else if (lu.live && !weekUnderway()) foot.appendChild(td(''));
     else if (lu.live) { foot.appendChild(td('')); foot.appendChild(td('')); foot.appendChild(td(fmt(t.id === o.teamA.id ? o.scoreA : o.scoreB))); }
     else foot.appendChild(td(''));
     foot.appendChild(td(fmt(lu.total * A.scale)));
@@ -2795,8 +2831,10 @@ function renderMatchupTab(ctx, box) {
   });
   s.appendChild(grid);
   if (slate.events.some(e => e.state === 'in')) s.appendChild(el('p', 'note', 'Highlighted players are in a game right now.'));
-  s.appendChild(el('p', 'note', o.started ? 'Lineups are what each manager has set. "Left" is the projection for the part of each game still to play.'
-    : 'Both sides use their best projected lineup, which may differ from what each manager has set.'));
+  s.appendChild(el('p', 'note', o.started && weekUnderway() ? 'Lineups are what each manager has set. "Left" is the projection for the part of each game still to play.'
+    : o.started ? 'Lineups are what each manager has set right now.'
+    : w === cur ? 'Both sides use their best projected lineup, which may differ from what each manager has set.'
+    : 'Future weeks use each team\'s best projected lineup. Once the week arrives, this switches to the lineups the managers set.'));
 }
 
 function openTeam(teamId) {
@@ -4660,11 +4698,16 @@ setInterval(async () => {
 
 // ---------------------------------------------------------------- live fantasy matchups
 
+// While the Matchup tab is open, re-read the league about once a minute so lineup changes show up.
+setInterval(() => {
+  if (!document.hidden && view === 'league' && leagueSub === 'matchup') liveLeagueRefresh();
+}, 30000);
+
 const leagueLive = {at: null, busy: false, players: {}, unsupported: false};
 
 async function liveLeagueRefresh() {
   const ctx = leagueCtx;
-  if (!ctx || leagueLive.busy || !weekUnderway()) return;
+  if (!ctx || leagueLive.busy || !(weekUnderway() || (view === 'league' && leagueSub === 'matchup'))) return;
   if (leagueLive.at && Date.now() - leagueLive.at < 55000 && leagueLive.key === ctx.active.key) return;   // at most once a minute
   leagueLive.key = ctx.active.key;
   const {L, active} = ctx;
