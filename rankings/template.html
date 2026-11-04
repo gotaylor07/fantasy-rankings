@@ -1943,13 +1943,16 @@ function availablePlayers(L) {
 
 function suggestPickups(L, me, profiles, available) {
   const before = profiles[me.id].total;
+  const specialist = pl => pl.pos === 'K' || pl.pos === 'DEF';
   const byPos = {};
   available.forEach(pl => (byPos[pl.pos] = byPos[pl.pos] || []).push(pl));
   // For each promising free agent, every possible drop and what it gains you.
   const options = [];
   Object.values(byPos).forEach(list => {
     list.sort((a, b) => rosValue(b) - rosValue(a)).slice(0, 8).forEach(add => {
-      const drops = me.players.map(drop => ({add, drop, gain: profile(L, me.players.filter(p => p !== drop).concat([add])).total - before}))
+      // A kicker or D/ST is only worth a roster spot held by another kicker or D/ST, never a skill player's.
+      const drops = me.players.filter(drop => !specialist(add) || specialist(drop))
+        .map(drop => ({add, drop, gain: profile(L, me.players.filter(p => p !== drop).concat([add])).total - before}))
         .filter(o => o.gain >= 0.2).sort((x, y) => y.gain - x.gain);
       if (drops.length) options.push(drops);
     });
