@@ -139,7 +139,7 @@ def players(week: int, seed: int = 11) -> dict:
     }
 
 
-def league(player_data: dict, week: int, seed: int = 5) -> dict:
+def league(player_data: dict, week: int, season: int, seed: int = 5) -> dict:
     """A 10-team demo league in the shape of Sleeper's API responses."""
     rng = random.Random(seed)
     P = player_data["players"]
@@ -202,10 +202,13 @@ def league(player_data: dict, week: int, seed: int = 5) -> dict:
     return {
         "league": {"league_id": "demo", "name": "Demo League", "season": "demo", "total_rosters": n_teams,
                    "roster_positions": slots,
-                   "settings": {"playoff_week_start": reg_weeks + 1, "playoff_teams": 4, "start_week": 1}},
+                   "settings": {"playoff_week_start": reg_weeks + 1, "playoff_teams": 4, "start_week": 1, "type": 2, "draft_rounds": 4}},
         "users": users,
         "rosters": roster_objs,
         "matchups": matchups,
+        # Sleeper's traded_picks shape: roster_id is the original team, owner_id who has the pick now.
+        "traded": [{"season": str(season + 1), "round": 1, "roster_id": 4, "owner_id": 1},
+                   {"season": str(season + 2), "round": 2, "roster_id": 1, "owner_id": 3}],
         "me": "u0",
     }
 

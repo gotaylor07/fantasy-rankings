@@ -1357,7 +1357,7 @@ function sleeperPlayer(sid) {
 }
 
 function parseSleeper(bundle) {
-  const {league, users, rosters, matchups, me} = bundle;
+  const {league, users, rosters, matchups, me, traded} = bundle;
   const st = league.settings || {};
   const allSlots = league.roster_positions || [];
   const startSlots = allSlots.filter(s => !BENCH.has(s));
@@ -1391,6 +1391,7 @@ function parseSleeper(bundle) {
   const out = {
     platform: 'Sleeper', name: league.name, slots: startSlots, teams, schedule, regWeeks,
     playoffTeams: st.playoff_teams || 6, myTeam: (teams.find(t => t.mine) || {}).id,
+    dynasty: st.type === 2, rounds: st.draft_rounds, traded: traded || [],
   };
   if (NBA) {
     out.scoring = league.scoring_settings || D.scoring;
@@ -1466,14 +1467,15 @@ async function getJSON(url) {
 
 const SLEEPER = 'https://api.sleeper.app/v1';
 async function loadSleeper(leagueId) {
-  const [league, users, rosters] = await Promise.all([
+  const [league, users, rosters, traded] = await Promise.all([
     getJSON(`${SLEEPER}/league/${leagueId}`), getJSON(`${SLEEPER}/league/${leagueId}/users`), getJSON(`${SLEEPER}/league/${leagueId}/rosters`),
+    getJSON(`${SLEEPER}/league/${leagueId}/traded_picks`).catch(() => []),
   ]);
   const st = league.settings || {};
   const weeks = []; for (let w = st.start_week || 1; w < (st.playoff_week_start || 15); w++) weeks.push(w);
   const lists = await Promise.all(weeks.map(w => getJSON(`${SLEEPER}/league/${leagueId}/matchups/${w}`).catch(() => [])));
   const matchups = Object.fromEntries(weeks.map((w, i) => [String(w), lists[i]]));
-  return parseSleeper({league, users, rosters, matchups, me: (store.get().sleeper || {}).user_id});
+  return parseSleeper({league, users, rosters, matchups, traded, me: (store.get().sleeper || {}).user_id});
 }
 
 const ESPN_VIEWS = ['mSettings', 'mTeam', 'mRoster', 'mMatchupScore', 'mLiveScoring'];
@@ -2229,7 +2231,51 @@ function biggestShift(L, profiles, teamId, newPlayers) {
 
 function withProfile(profiles, id, p) { return Object.assign({}, profiles, {[id]: p}); }
 
-let tradeState = null;   // {league, partner, give: Set(keys), get: Set(keys)}
+let tradeState = null;   // {league, partner, give: Set(keys), get: Set(keys), givePicks: Set(ids), getPicks: Set(ids)}
+const newTrade = (league, partner, give = [], get = []) =>
+  ({league, partner, give: new Set(give), get: new Set(get), givePicks: new Set(), getPicks: new Set()});
+
+// Draft picks. Sleeper says when a league is dynasty; other leagues can turn picks on in the analyzer.
+const PICK_YEARS = 3;
+const picksOn = ctx => ctx.L.dynasty || (store.get().pickLeagues || []).includes(ctx.active.key);
+
+/** {teamId: [{id, year, round, orig}]}: each team's own picks for the next few drafts, moved to whoever owns them now. */
+function draftPicks(L) {
+  const moved = Object.fromEntries((L.traded || []).map(t => [`${t.season}-${t.round}-${t.roster_id}`, t.owner_id]));
+  const rounds = Math.max(L.rounds || 4, ...(L.traded || []).map(t => t.round));
+  const out = Object.fromEntries(L.teams.map(t => [t.id, []]));
+  for (let y = 1; y <= PICK_YEARS; y++) for (let round = 1; round <= rounds; round++) L.teams.forEach(t => {
+    const year = D.season + y, id = `${year}-${round}-${t.id}`;
+    (out[id in moved ? moved[id] : t.id] || out[t.id]).push({id, year, round, orig: t.id});
+  });
+  return out;
+}
+
+/** {teamId: tier} for next year's picks: the teams projected to finish worst pick early, the best late. */
+function pickTiers(L, A) {
+  const order = L.teams.slice().sort((a, b) => A.wins[a.id] - A.wins[b.id]);
+  const third = order.length / 3;
+  return Object.fromEntries(order.map((t, i) => [t.id, i < third ? 'early' : i >= 2 * third ? 'late' : 'mid']));
+}
+const pickTier = (pick, tiers) => (pick.year === D.season + 1 ? tiers[pick.orig] : 'mid');
+
+/** A pick's dynasty value. Years and rounds past what's priced fall back to the last priced one, discounted. */
+function pickValue(pick, tiers) {
+  const prices = D.dynasty.picks;
+  const last = Math.max(...Object.keys(prices).map(Number));
+  const year = Math.min(pick.year, last);
+  const rounds = prices[year];
+  const lastRound = Math.max(...Object.keys(rounds).map(Number));
+  const round = Math.min(pick.round, lastRound);
+  return Math.round(rounds[round][pickTier(pick, tiers)] * 0.9 ** (pick.year - year) * 0.6 ** (pick.round - round));
+}
+
+function pickName(pick, tiers, L, owner) {
+  const tier = pick.year === D.season + 1 ? ` (${tiers[pick.orig][0].toUpperCase()}${tiers[pick.orig].slice(1)})` : '';
+  const via = pick.orig === owner ? '' : ` from ${L.teams.find(t => t.id === pick.orig).name}`;
+  return `${pick.year} ${ordinal(pick.round)}${tier}${via}`;
+}
+const dynastyValue = pl => D.dynasty.players[pl.sid] || 0;
 
 function renderTradesTab(ctx, box, token) {
   const {L, me, profiles, ranks, active} = ctx;
@@ -2274,13 +2320,13 @@ function renderTradesTab(ctx, box, token) {
   sug.appendChild(sugBody);
   box.appendChild(sug);
 
-  const an = section('Trade analyzer', 'Pick a team, then tick the players each side sends. Results update as you go.');
+  const an = section('Trade analyzer', 'Pick a team, then tick what each side sends. Results update as you go.');
   const anBody = el('div');
   an.appendChild(anBody);
   box.appendChild(an);
 
   if (!tradeState || tradeState.league !== active.key || !L.teams.some(t => t.id === tradeState.partner && t.id !== me.id)) {
-    tradeState = {league: active.key, partner: (L.teams.find(t => t.id !== me.id) || {}).id, give: new Set(), get: new Set()};
+    tradeState = newTrade(active.key, (L.teams.find(t => t.id !== me.id) || {}).id);
   }
   const drawAnalyzer = () => renderAnalyzer(ctx, anBody);
   drawAnalyzer();
@@ -2301,7 +2347,7 @@ function renderTradesTab(ctx, box, token) {
       row.appendChild(td(signed(tr.theirGain), 'muted'));
       const c = td(''); const b = el('button', 'btn ghost', 'Analyze'); b.type = 'button';
       b.addEventListener('click', () => {
-        tradeState = {league: active.key, partner: tr.team.id, give: new Set(tr.give.map(plKey)), get: new Set(tr.get.map(plKey))};
+        tradeState = newTrade(active.key, tr.team.id, tr.give.map(plKey), tr.get.map(plKey));
         drawAnalyzer();
         an.scrollIntoView({behavior: 'smooth', block: 'start'});
       });
@@ -2324,15 +2370,29 @@ function renderAnalyzer(ctx, box) {
   L.teams.filter(t => t.id !== me.id).forEach(t => { const o = el('option', '', t.name); o.value = String(t.id); sel.appendChild(o); });
   sel.value = String(them.id);
   sel.addEventListener('change', () => {
-    tradeState = {league: st.league, partner: L.teams.find(t => String(t.id) === sel.value).id, give: new Set(), get: new Set()};
+    tradeState = newTrade(st.league, L.teams.find(t => String(t.id) === sel.value).id);
     renderAnalyzer(ctx, box);
   });
   label.appendChild(sel);
   top.appendChild(label);
   const clear = el('button', 'btn ghost', 'Clear selections');
   clear.type = 'button';
-  clear.addEventListener('click', () => { st.give.clear(); st.get.clear(); renderAnalyzer(ctx, box); });
+  clear.addEventListener('click', () => { [st.give, st.get, st.givePicks, st.getPicks].forEach(s => s.clear()); renderAnalyzer(ctx, box); });
   top.appendChild(clear);
+  if (!L.dynasty) {
+    const toggle = el('label', 'desc');
+    const cb = el('input'); cb.type = 'checkbox'; cb.checked = picksOn(ctx);
+    cb.addEventListener('change', () => {
+      const s = store.get();
+      const on = new Set(s.pickLeagues || []);
+      if (cb.checked) on.add(ctx.active.key); else on.delete(ctx.active.key);
+      s.pickLeagues = [...on]; store.set(s);
+      renderAnalyzer(ctx, box);
+    });
+    toggle.appendChild(cb);
+    toggle.appendChild(document.createTextNode(' Include draft picks (dynasty)'));
+    top.appendChild(toggle);
+  }
   box.appendChild(top);
 
   const grid = el('div', 'trade-grid');
@@ -2355,15 +2415,46 @@ function renderAnalyzer(ctx, box) {
   box.appendChild(grid);
   box.appendChild(el('p', 'note', `Numbers next to players are projected points per week ${HORIZON}${NBA ? ', so players with more games are worth more' : ', counting bye weeks as zero'}.`));
 
+  const dynasty = picksOn(ctx);
+  const allPicks = dynasty ? draftPicks(L) : {};
+  const tiers = dynasty ? pickTiers(L, A) : {};
+  if (dynasty) {
+    const pickSide = (title, team, picked) => {
+      const col = el('fieldset', 'checklist');
+      col.appendChild(el('legend', '', title));
+      allPicks[team.id].forEach(pick => {
+        const row = el('label', 'check');
+        const cb = el('input'); cb.type = 'checkbox'; cb.checked = picked.has(pick.id);
+        cb.addEventListener('change', () => { if (cb.checked) picked.add(pick.id); else picked.delete(pick.id); drawResult(); });
+        row.appendChild(cb);
+        row.appendChild(el('span', '', pickName(pick, tiers, L, team.id)));
+        row.appendChild(el('span', 'val', pickValue(pick, tiers).toLocaleString()));
+        col.appendChild(row);
+      });
+      if (!allPicks[team.id].length) col.appendChild(el('p', 'empty', 'No picks in the next few drafts.'));
+      return col;
+    };
+    const pickGrid = el('div', 'trade-grid');
+    pickGrid.appendChild(pickSide('Your draft picks', me, st.givePicks));
+    pickGrid.appendChild(pickSide(`${them.name} draft picks`, them, st.getPicks));
+    box.appendChild(pickGrid);
+    box.appendChild(el('p', 'note', `Numbers next to picks are dynasty trade value, where the top player is 10,000. Next year's tier comes from the original team's projected finish.${L.platform === 'Sleeper' ? '' : ` ${L.platform} doesn't share traded picks, so each team is shown with its own.`}`));
+  }
+
   const result = el('div');
   box.appendChild(result);
 
   function drawResult() {
     result.replaceChildren();
-    clear.disabled = !st.give.size && !st.get.size;
+    clear.disabled = !st.give.size && !st.get.size && !st.givePicks.size && !st.getPicks.size;
     const give = me.players.filter(p => st.give.has(plKey(p)));
     const get = them.players.filter(p => st.get.has(plKey(p)));
-    if (!give.length && !get.length) { result.appendChild(el('p', 'empty', 'Tick players on either side to see how the trade changes both teams.')); return; }
+    const givePicks = dynasty ? allPicks[me.id].filter(p => st.givePicks.has(p.id)) : [];
+    const getPicks = dynasty ? allPicks[them.id].filter(p => st.getPicks.has(p.id)) : [];
+    if (!give.length && !get.length && !givePicks.length && !getPicks.length) {
+      result.appendChild(el('p', 'empty', `Tick ${dynasty ? 'players or picks' : 'players'} on either side to see how the trade changes both teams.`));
+      return;
+    }
     const mineAfter = afterTrade(me.players, give, get);
     const theirsAfter = afterTrade(them.players, get, give);
     const after = withProfile(withProfile(profiles, me.id, profile(L, mineAfter.players)), them.id, profile(L, theirsAfter.players));
@@ -2375,9 +2466,47 @@ function renderAnalyzer(ctx, box) {
       : myGain > 0.3 ? `Good for you, but ${them.name} gets worse, so they may say no.`
       : myGain < -0.3 && theirGain > 0 ? `This helps ${them.name} more than you.`
       : myGain < -0.3 ? 'This makes both teams worse.' : 'Roughly even for you.';
-    verdict.appendChild(el('b', '', msg));
-    verdict.appendChild(el('span', 'muted', ` You ${signed(myGain)} pts/wk (${fmt(profiles[me.id].total)} → ${fmt(after[me.id].total)}), ${them.name} ${signed(theirGain)} pts/wk.`));
+    // Dynasty: long-term value decides the verdict, and this season's points are the second opinion.
+    const worth = (players, picks) => players.reduce((s, pl) => s + dynastyValue(pl), 0) + picks.reduce((s, p) => s + pickValue(p, tiers), 0);
+    const sent = dynasty ? worth(give, givePicks) : 0;
+    const received = dynasty ? worth(get, getPicks) : 0;
+    const edge = received - sent;
+    const fair = Math.abs(edge) <= 0.05 * Math.max(sent, received);
+    const valueMsg = fair ? 'Fair on dynasty value.'
+      : edge > 0 ? `You win on dynasty value by ${edge.toLocaleString()}.`
+      : `${them.name} wins on dynasty value by ${(-edge).toLocaleString()}.`;
+    const moved = give.length || get.length;
+    verdict.appendChild(el('b', '', dynasty && Math.max(sent, received) ? valueMsg : msg));
+    if (moved) verdict.appendChild(el('span', 'muted', ` This season: you ${signed(myGain)} pts/wk (${fmt(profiles[me.id].total)} → ${fmt(after[me.id].total)}), ${them.name} ${signed(theirGain)} pts/wk.`));
     result.appendChild(verdict);
+    if (dynasty) {
+      const assets = (team, players, picks) => {
+        const rows = players.map(pl => { const tr = el('tr'); const c = td('', 'l'); c.appendChild(nameTag(pl)); tr.appendChild(c); tr.appendChild(td(dynastyValue(pl).toLocaleString(), 'avg')); return tr; })
+          .concat(picks.map(p => { const tr = el('tr'); tr.appendChild(td(pickName(p, tiers, L, team.id), 'l')); tr.appendChild(td(pickValue(p, tiers).toLocaleString(), 'avg')); return tr; }));
+        const f = el('tr');
+        f.appendChild(td('Total', 'l')); f.appendChild(td(worth(players, picks).toLocaleString()));
+        return table([['Asset', 'l'], 'Value'], rows, f);
+      };
+      const values = el('div', 'trade-grid');
+      [['You send', me, give, givePicks], ['You receive', them, get, getPicks]].forEach(([title, team, players, picks]) => {
+        const c = el('div'); c.appendChild(el('h3', '', title)); c.appendChild(assets(team, players, picks)); values.appendChild(c);
+      });
+      result.appendChild(values);
+      // The pick on the ahead side that comes closest to closing the gap, if one is close enough to be worth saying.
+      const payer = edge > 0 ? me : them;
+      const chosen = edge > 0 ? st.givePicks : st.getPicks;
+      const gap = Math.abs(edge);
+      const balance = fair ? null : allPicks[payer.id].filter(p => !chosen.has(p.id))
+        .sort((a, b) => Math.abs(pickValue(a, tiers) - gap) - Math.abs(pickValue(b, tiers) - gap))[0];
+      const notes = [];
+      if (balance && pickValue(balance, tiers) >= gap / 2 && pickValue(balance, tiers) <= gap * 1.5) {
+        const name = pickName(balance, tiers, L, payer.id);
+        notes.push(edge > 0 ? `To even it up, you could add your ${name}.` : `To even it up, ask ${them.name} to add their ${name}.`);
+      }
+      notes.push(D.dynasty.estimated ? `Values are ${D.dynasty.source}, not market prices.` : `Values from ${D.dynasty.source}.`);
+      result.appendChild(el('p', 'note', notes.join(' ')));
+    }
+    if (!moved) return;   // picks don't change this season's lineups
     const drops = [];
     if (mineAfter.dropped.length) drops.push(`You'd need to drop ${mineAfter.dropped.map(p => p.name).join(', ')} to make room.`);
     if (theirsAfter.dropped.length) drops.push(`${them.name} would need to drop ${theirsAfter.dropped.map(p => p.name).join(', ')}.`);
@@ -2902,7 +3031,7 @@ function openTeam(teamId) {
     const btn = el('button', 'btn', `Analyze a trade with ${t.name}`);
     btn.type = 'button'; btn.style.marginTop = '14px';
     btn.addEventListener('click', () => {
-      tradeState = {league: ctx.active.key, partner: t.id, give: new Set(), get: new Set()};
+      tradeState = newTrade(ctx.active.key, t.id);
       leagueSub = 'trades'; setHash({sub: 'trades'});
       dlg.close();
       renderLeague();

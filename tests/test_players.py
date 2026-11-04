@@ -129,7 +129,7 @@ class EspnTrimTests(unittest.TestCase):
 class DemoTests(unittest.TestCase):
     def test_demo_league_is_consistent(self):
         pd = demo.players(8)
-        lg = demo.league(pd, 8)
+        lg = demo.league(pd, 8, 2026)
         ids = {r["roster_id"] for r in lg["rosters"]}
         for w, rows in lg["matchups"].items():
             self.assertEqual({r["roster_id"] for r in rows}, ids)

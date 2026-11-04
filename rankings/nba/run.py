@@ -5,7 +5,7 @@ import json
 import sys
 from datetime import date, datetime
 
-from .. import leagues, site, slate
+from .. import leagues, picks, site, slate
 from . import build as nb
 from . import demo
 
@@ -50,7 +50,7 @@ def run(args, today: date) -> int:
     espn_periods = {}
     if args.demo:
         seasons = demo.history(pd, season)
-        league_data = {"espn": [], "demo": demo.league(pd, today)}
+        league_data = {"espn": [], "demo": demo.league(pd, today, season)}
     else:
         for label, fn in (("ESPN own %", lambda: nb.attach_ownership(pd, nb.espn_ownership(season))),
                           ("ESPN injuries", lambda: nb.attach_injuries(pd, nb.espn_injuries(), today))):
@@ -79,6 +79,7 @@ def run(args, today: date) -> int:
     data = {
         "sport": "basketball",
         "slate": slate_data,
+        "dynasty": picks.estimate([r["sid"] for r in (types["dynasty"].get("rankings") or {}).get("ALL", []) if r.get("sid")], season),
         "links": update.DEMO_LINKS if args.demo else update.LINKS,
         "generated": datetime.now().astimezone().isoformat(timespec="seconds"),
         "season": season,

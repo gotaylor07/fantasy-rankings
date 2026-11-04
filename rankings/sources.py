@@ -181,11 +181,17 @@ def fantasypros(kind: str) -> list[dict]:
 # FantasyCalc: trade values (dynasty) and redraft values (used for ROS)
 # --------------------------------------------------------------------------
 
-def fantasycalc(dynasty: bool) -> list[dict]:
-    data = _get(
+@functools.lru_cache(maxsize=None)
+def fantasycalc_raw(dynasty: bool) -> tuple:
+    """FantasyCalc's full list, draft picks included (cached: the boards and trade values share it)."""
+    return tuple(_get(
         "https://api.fantasycalc.com/values/current",
         params={"isDynasty": str(dynasty).lower(), "numQbs": 1, "numTeams": 12, "ppr": 1},
-    ).json()
+    ).json())
+
+
+def fantasycalc(dynasty: bool) -> list[dict]:
+    data = fantasycalc_raw(dynasty)
     rows = []
     for e in data:
         p = e.get("player") or {}
@@ -206,14 +212,19 @@ def fantasycalc(dynasty: bool) -> list[dict]:
 # KeepTradeCut: dynasty values (1QB)
 # --------------------------------------------------------------------------
 
-def keeptradecut() -> list[dict]:
+@functools.lru_cache(maxsize=None)
+def ktc_players() -> tuple:
+    """KeepTradeCut's full list, draft picks included (cached: the board and trade values share it)."""
     html = _get_text("https://keeptradecut.com/dynasty-rankings")
     # Player data now lives in <script type="application/json" id="ktc-players">;
     # older pages assigned it inline to `var playersArray`.
     m = re.search(r'<script[^>]*id="ktc-players"[^>]*>(.*?)</script>', html, re.S)
-    players = json.loads(m.group(1)) if m else _json_after(html, "var playersArray", "[")
+    return tuple(json.loads(m.group(1)) if m else _json_after(html, "var playersArray", "["))
+
+
+def keeptradecut() -> list[dict]:
     rows = []
-    for p in players:
+    for p in ktc_players():
         pos = p.get("position")
         value = (p.get("oneQBValues") or {}).get("value")
         if pos not in POSITIONS or value is None or not p.get("playerName"):

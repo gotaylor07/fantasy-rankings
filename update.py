@@ -21,7 +21,7 @@ from zoneinfo import ZoneInfo
 # Apple's bundled Python links LibreSSL; urllib3 warns about it on every run but works.
 warnings.filterwarnings("ignore", message="urllib3 v2 only supports OpenSSL")
 
-from rankings import demo, depth, history, leagues, players, site, slate
+from rankings import demo, depth, history, leagues, picks, players, site, slate
 from rankings.aggregate import aggregate, upcoming_week
 from rankings.sources import espn_injuries, espn_ownership, sleeper_players, source_registry
 
@@ -144,7 +144,7 @@ def run_football(args, today: date) -> int:
 
     if args.demo:
         player_data = demo.players(week)
-        league_data = {"espn": [], "demo": demo.league(player_data, week)}
+        league_data = {"espn": [], "demo": demo.league(player_data, week, season)}
     else:
         try:
             player_data = players.build(season, week)
@@ -194,10 +194,22 @@ def run_football(args, today: date) -> int:
         except Exception as exc:
             print(f"  FAIL depth    ESPN {type(exc).__name__}: {exc}", file=sys.stderr)
 
+    # Dynasty trade values: the market's, or an estimate from the board if the market is unavailable.
+    boards = (types["dynasty"].get("rankings") or {}).values()
+    ranked = [r["sid"] for r in sorted((r for rows in boards for r in rows if r.get("sid")), key=lambda r: r["rank"])]
+    dynasty_values = picks.estimate(ranked, season)
+    if not args.demo:
+        try:
+            dynasty_values = picks.football(player_data.get("keys", {}))
+            print(f"  ok   dynasty  values        {len(dynasty_values['players'])} players, {len(dynasty_values['picks'])} draft years")
+        except Exception as exc:
+            print(f"  FAIL dynasty  values {type(exc).__name__}: {exc}", file=sys.stderr)
+
     data = {
         "sport": "football",
         "slate": slate_data,
         "depth": depth_data,
+        "dynasty": dynasty_values,
         "links": DEMO_LINKS if args.demo else LINKS,
         "generated": datetime.now().astimezone().isoformat(timespec="seconds"),
         "season": season,

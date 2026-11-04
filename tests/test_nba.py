@@ -67,7 +67,7 @@ class DemoTests(unittest.TestCase):
             self.assertTrue(all(out[p] for p in nb.BOARD_POSITIONS), kind)
 
     def test_demo_league(self):
-        lg = demo.league(self.pd, self.today)
+        lg = demo.league(self.pd, self.today, 2026)
         ids = {r["roster_id"] for r in lg["rosters"]}
         for w, rows in lg["matchups"].items():
             self.assertEqual({r["roster_id"] for r in rows}, ids)
