@@ -175,6 +175,21 @@ dialog::backdrop{background:var(--backdrop);backdrop-filter:blur(3px)}
 .check{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid var(--line);cursor:pointer;font-size:14px}
 .check:last-child{border-bottom:0}
 .check .val{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
+.chat-log{border:1px solid var(--line);border-radius:var(--radius);background:var(--card);padding:12px;max-height:460px;min-height:120px;overflow:auto;display:flex;flex-direction:column;gap:10px;box-shadow:var(--shadow)}
+.msg{max-width:85%;padding:9px 12px;border-radius:14px;font-size:14px;line-height:1.45;overflow-wrap:anywhere}
+.msg.user{align-self:flex-end;background:var(--accent);color:var(--accent-text);border-bottom-right-radius:4px;white-space:pre-wrap}
+.msg.bot{align-self:flex-start;background:var(--row);border:1px solid var(--line);border-bottom-left-radius:4px}
+.msg.status{align-self:flex-start;color:var(--muted);font-style:italic;padding:2px 4px}
+.msg.error{align-self:flex-start;color:var(--bad,#c0392b);padding:2px 4px}
+.chat-text p{margin:0 0 6px}.chat-text p:last-child{margin:0}.chat-text ul{margin:4px 0 6px;padding-left:20px}
+.chat-trade{align-self:flex-start;max-width:85%;border:1px solid color-mix(in srgb,var(--accent) 40%,var(--line));border-left:4px solid var(--accent);border-radius:10px;padding:10px 12px;background:var(--card);display:flex;flex-direction:column;gap:3px;font-size:14px}
+.chat-trade > div:first-child{font-weight:700}.chat-trade .btn{align-self:flex-start;margin-top:6px}
+.chat-ideas{display:flex;flex-wrap:wrap;gap:8px;margin:auto 0 0}
+.chat-ideas .btn{white-space:normal;text-align:left;font-size:13px}
+.chat-input{display:flex;gap:8px;margin-top:10px;align-items:stretch}
+.chat-input textarea{flex:1;min-width:0;border:1px solid var(--line);background:var(--card);color:var(--text);padding:8px 12px;border-radius:10px;font:inherit;resize:vertical}
+.chat-key p{margin:0 0 8px}
+@media (max-width:640px){.msg,.chat-trade{max-width:95%}}
 .verdict{margin:14px 0 6px}
 /* Games: Blind Rank */
 .g-hero{margin-bottom:14px}
@@ -2285,6 +2300,9 @@ function renderTradesTab(ctx, box, token) {
   const n = L.teams.length;
   const positions = strengthBuckets(L);
 
+  const asst = section('Trade assistant', 'Ask for trade ideas in your own words ("I want to fleece Team X for their RB", "improve my QB") or ask anything about your team and league.');
+  box.appendChild(asst);
+
   // Your position strengths and needs
   const mine = section('Your position strengths', `Projected points per week your best lineup gets from each position's own slots ${HORIZON}, against the league average. FLEX covers the flex slots, whoever fills them. Needs are positions where you rank in the bottom half.`);
   const benchBest = {};
@@ -2333,6 +2351,12 @@ function renderTradesTab(ctx, box, token) {
   }
   const drawAnalyzer = () => renderAnalyzer(ctx, anBody);
   drawAnalyzer();
+  renderAssistant(ctx, asst, st => {
+    if ((st.givePicks.size || st.getPicks.size) && !picksOn(ctx)) { const s = store.get(); s.pickLeagues = [...(s.pickLeagues || []), active.key]; store.set(s); }
+    tradeState = st;
+    drawAnalyzer();
+    an.scrollIntoView({behavior: 'smooth', block: 'start'});
+  });
 
   setTimeout(() => {
     if (token !== renderToken) return;
@@ -2556,6 +2580,426 @@ function renderAnalyzer(ctx, box) {
     })));
   }
   drawResult();
+}
+
+// ---------------------------------------------------------------- trade assistant (Claude, with the visitor's own API key)
+
+// The page has no server, so each visitor brings an Anthropic API key. It stays in this browser and goes only to Anthropic.
+const CLAUDE_SDK = 'https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.3.0/+esm';
+const CLAUDE_MODEL = 'claude-opus-5-5';
+const claudeKey = {
+  get() { try { return localStorage.getItem('fr-claude-key') || ''; } catch (e) { return ''; } },
+  set(v) { try { if (v) localStorage.setItem('fr-claude-key', v); else localStorage.removeItem('fr-claude-key'); } catch (e) { /* private window */ } },
+};
+let claudeSdk = null;   // the SDK module, loaded the first time someone sends a message
+let chat = null;        // {league, messages: API history, log: [{kind, text, trade}], busy}
+
+/** A rostered player by name ({pl, team}), forgiving about case, punctuation and first names. */
+function findLeaguePlayer(L, name) {
+  const want = normName(String(name || ''));
+  const all = L.teams.flatMap(team => team.players.map(pl => ({pl, team})));
+  return all.find(x => normName(x.pl.name) === want)
+    || all.find(x => normName(x.pl.name).includes(want))
+    || all.find(x => want.split(' ').length > 1 && normName(x.pl.name).endsWith(' ' + want.split(' ').pop()) && normName(x.pl.name)[0] === want[0])
+    || null;
+}
+function findLeagueTeam(L, name) {
+  const want = String(name || '').trim().toLowerCase();
+  return L.teams.find(t => t.name.toLowerCase() === want || (t.owner || '').toLowerCase() === want)
+    || L.teams.find(t => t.name.toLowerCase().includes(want) || (want && (t.owner || '').toLowerCase().includes(want)))
+    || null;
+}
+
+const playerSummary = (pl, dynasty) => {
+  const parts = [`${pl.name} (${(NBA ? (pl.el || [pl.pos]).join('/') : pl.pos)}, ${pl.team || 'FA'})`, `${fmt(rosValue(pl))} pts/wk`];
+  if (dynasty) parts.push(`dynasty ${dynastyValue(pl)}`);
+  if (pl.inj) parts.push(`injury: ${pl.inj}`);
+  return parts.join(', ');
+};
+
+/** The league as the assistant sees it at the start of a chat: standings, position ranks and your roster. */
+function assistantContext(ctx) {
+  const {L, A, me, ranks} = ctx;
+  const dynasty = picksOn(ctx);
+  const buckets = strengthBuckets(L);
+  const teams = L.teams.slice().sort((a, b) => A.powerRank[a.id] - A.powerRank[b.id]).map(t => {
+    const s = A.S[t.id];
+    return `- ${t.name}${t.id === me.id ? ' (USER)' : ''}${t.owner ? `, managed by ${t.owner}` : ''}: record ${s.w}-${s.l}${s.t ? '-' + s.t : ''}, power rank ${A.powerRank[t.id]}, ` +
+      `projected ${fmt(A.wins[t.id])} wins, playoff odds ${Math.round(100 * A.playoffs[t.id])}%, position ranks ${buckets.map(p => `${posLabel(p)} ${ranks[t.id][p]}`).join(' ')}`;
+  });
+  return [
+    `Sport: ${NBA ? 'fantasy basketball' : 'fantasy football'}. League: ${L.name} on ${L.platform}, ${L.teams.length} teams, ${dynasty ? 'dynasty (keep players across seasons; draft picks can be traded)' : 'redraft'}.`,
+    `Lineup slots: ${L.slots.join(', ')}. Current week: ${curWeek(L)}.`,
+    `Player value ("pts/wk") is the projected points per week ${HORIZON}, in this league's scoring.${dynasty ? ` "Dynasty" is long-term trade value where the top player is 10,000 (${D.dynasty.source}).` : ''}`,
+    `Position ranks: 1 is the best in the league at that position.`,
+    '', 'Teams, best first:', ...teams,
+    '', `The user's team is ${me.name}. Roster:`, ...me.players.map(pl => '- ' + playerSummary(pl, dynasty)),
+  ].join('\n');
+}
+
+const ASSISTANT_RULES = `You are the trade assistant on a fantasy sports website, chatting with a manager about their league. The league data below is current.
+
+- Use the tools for anything beyond the summary: other rosters, player details, finding trades and checking a trade. Never make up players, rosters or numbers.
+- To propose trades, call find_trades, then check your favourite with evaluate_trade. Every trade you check appears in the chat as a card the user can open in the trade analyzer, so don't repeat all its numbers.
+- "Fleece" or "win the trade" means the user wants the most value they can get while the other manager could still plausibly say yes. Say honestly when a trade is too lopsided to be accepted.
+- Answer questions about the user's team and league directly, using the numbers.
+- Keep replies short: a few sentences or a short list. Use **bold** for player names in proposals. No tables or headings.`;
+
+const ASSISTANT_TOOLS = [
+  {name: 'get_team', description: "A team's full roster with each player's value, its record, power rank, playoff odds and position ranks, and its draft picks in dynasty leagues.",
+   input_schema: {type: 'object', properties: {team: {type: 'string', description: 'Team name or manager name'}}, required: ['team']}},
+  {name: 'get_player', description: 'One player: who rosters him (or free agent), position, value, rank at his position, injury and next opponent.',
+   input_schema: {type: 'object', properties: {name: {type: 'string'}}, required: ['name']}},
+  {name: 'find_trades', description: "Search trades for the user's team. Give a target player, a position to improve, a partner team, or any mix. Returns the best packages with how much each side gains.",
+   input_schema: {type: 'object', properties: {
+     target: {type: 'string', description: 'A player the user wants to get'},
+     position: {type: 'string', description: `A position the user wants to improve: ${ALL_POS.join(', ')}`},
+     partner: {type: 'string', description: 'Only trade with this team'},
+     style: {type: 'string', enum: ['fair', 'win_big'], description: 'fair: good for both sides. win_big: as much as possible for the user while the other side might still accept.'},
+   }, required: ['style']}},
+  {name: 'evaluate_trade', description: "Check one trade between the user's team and a partner: points per week gained by each side, position ranks before and after, players dropped for roster room, and dynasty value. Shows the trade to the user as a card.",
+   input_schema: {type: 'object', properties: {
+     partner: {type: 'string'},
+     give: {type: 'array', items: {type: 'string'}, description: "Players the user sends"},
+     get: {type: 'array', items: {type: 'string'}, description: 'Players the user receives'},
+     give_picks: {type: 'array', items: {type: 'string'}, description: "Pick ids from get_team (dynasty leagues), the user's"},
+     get_picks: {type: 'array', items: {type: 'string'}, description: "Pick ids from get_team, the partner's"},
+   }, required: ['partner', 'give', 'get']}},
+].map(t => Object.assign(t, {eager_input_streaming: true}));
+
+/** Checks a tool input against its (flat) schema: required fields there, strings strings, arrays of strings. */
+function badInput(tool, input) {
+  const {properties, required} = ASSISTANT_TOOLS.find(t => t.name === tool).input_schema;
+  if (!input || typeof input !== 'object') return 'input must be an object';
+  for (const k of required) if (input[k] === undefined) return `missing ${k}`;
+  for (const [k, v] of Object.entries(input)) {
+    const s = properties[k];
+    if (!s) return `unknown field ${k}`;
+    if (s.type === 'string' && typeof v !== 'string') return `${k} must be a string`;
+    if (s.type === 'array' && !(Array.isArray(v) && v.every(x => typeof x === 'string'))) return `${k} must be a list of strings`;
+    if (s.enum && !s.enum.includes(v)) return `${k} must be one of ${s.enum.join(', ')}`;
+  }
+  return null;
+}
+
+/** Both sides of a trade, scored the way the analyzer scores it. */
+function scoreTrade(ctx, them, give, get, givePicks = [], getPicks = []) {
+  const {L, A, me, profiles} = ctx;
+  const mineAfter = afterTrade(me.players, give, get);
+  const theirsAfter = afterTrade(them.players, get, give);
+  const after = withProfile(withProfile(profiles, me.id, profile(L, mineAfter.players)), them.id, profile(L, theirsAfter.players));
+  const tiers = pickTiers(L, A);
+  const worth = (players, picks) => players.reduce((s, pl) => s + dynastyValue(pl), 0) + picks.reduce((s, p) => s + pickValue(p, tiers), 0);
+  return {
+    myGain: after[me.id].total - profiles[me.id].total, theirGain: after[them.id].total - profiles[them.id].total,
+    valueEdge: picksOn(ctx) ? worth(get, getPicks) - worth(give, givePicks) : null,
+    mineAfter, theirsAfter, after,
+  };
+}
+
+const assistantTools = {
+  get_team(ctx, {team}) {
+    const {L, A, me, ranks, profiles} = ctx;
+    const t = findLeagueTeam(L, team);
+    if (!t) return {error: `No team called "${team}". Teams: ${L.teams.map(x => x.name).join(', ')}`};
+    const s = A.S[t.id];
+    const out = {
+      team: t.name, manager: t.owner, is_user: t.id === me.id, record: `${s.w}-${s.l}${s.t ? '-' + s.t : ''}`,
+      power_rank: A.powerRank[t.id], playoff_odds: `${Math.round(100 * A.playoffs[t.id])}%`, projected_wins: +fmt(A.wins[t.id]),
+      points_per_week: +fmt(profiles[t.id].total),
+      position_ranks: Object.fromEntries(strengthBuckets(L).map(p => [posLabel(p), ranks[t.id][p]])),
+      roster: t.players.slice().sort((a, b) => rosValue(b) - rosValue(a)).map(pl => playerSummary(pl, picksOn(ctx))),
+    };
+    if (picksOn(ctx)) {
+      const tiers = pickTiers(L, A);
+      out.draft_picks = draftPicks(L)[t.id].map(p => ({id: p.id, pick: pickName(p, tiers, L, t.id), value: pickValue(p, tiers)}));
+    }
+    return out;
+  },
+
+  get_player(ctx, {name}) {
+    const {L} = ctx;
+    const found = findLeaguePlayer(L, name);
+    let pl = found && found.pl;
+    if (!pl) {
+      const want = normName(name);
+      const free = availablePlayers(L).find(p => normName(p.name) === want) || availablePlayers(L).find(p => normName(p.name).includes(want));
+      if (!free) return {error: `No player called "${name}" in this league or on waivers.`};
+      pl = free;
+    }
+    const p = P[pl.sid] || {};
+    const rank = Object.entries((D.types.ros || {}).rankings || {}).map(([pos, rows]) => [pos, (rows.find(r => r.sid === pl.sid) || {}).rank]).find(([, r]) => r);
+    const next = pl.team && nextGame(pl.team);
+    return {
+      player: pl.name, position: NBA ? (pl.el || [pl.pos]).join('/') : pl.pos, pro_team: pl.team,
+      rostered_by: found ? found.team.name : 'free agent', points_per_week: +fmt(rosValue(pl)),
+      rest_of_season_rank: rank ? `${posLabel(rank[0])} ${rank[1]}` : 'unranked',
+      dynasty_value: picksOn(ctx) ? dynastyValue(pl) : undefined,
+      injury: (p.inj && `${p.inj.s}${p.inj.type ? ' (' + p.inj.type + ')' : ''}${p.inj.ret ? ', expected back ' + p.inj.ret : ''}`) || pl.inj || 'healthy',
+      next_game: next ? gameLabel(next) : undefined,
+    };
+  },
+
+  find_trades(ctx, {target, position, partner, style}) {
+    const {L, A, me} = ctx;
+    let teams = L.teams.filter(t => t.id !== me.id);
+    let wanted = null;
+    if (target) {
+      const f = findLeaguePlayer(L, target);
+      if (!f) return {error: `No rostered player called "${target}".`};
+      if (f.team.id === me.id) return {error: `${f.pl.name} is already on the user's team.`};
+      wanted = f.pl; teams = [f.team];
+    }
+    if (partner) {
+      const t = findLeagueTeam(L, partner);
+      if (!t || t.id === me.id) return {error: `No other team called "${partner}".`};
+      teams = teams.filter(x => x.id === t.id);
+    }
+    const pos = position && ALL_POS.find(p => p.toLowerCase() === position.toLowerCase().replace('d/st', 'def'));
+    const byValue = list => list.filter(p => rosValue(p) > 0.5).sort((a, b) => rosValue(b) - rosValue(a));
+    const mine = byValue(me.players).slice(0, 12);
+    const tiers = pickTiers(L, A);
+    const myPicks = picksOn(ctx) ? draftPicks(L)[me.id].slice().sort((a, b) => pickValue(b, tiers) - pickValue(a, tiers)).slice(0, 5) : [];
+    // Packages the user could send: one player, two players, or (dynasty) one player plus a pick.
+    const packages = mine.map(a => ({give: [a], picks: []}));
+    for (let i = 0; i < 8 && i < mine.length; i++) for (let j = i + 1; j < 8 && j < mine.length; j++) packages.push({give: [mine[i], mine[j]], picks: []});
+    mine.slice(0, 8).forEach(a => myPicks.forEach(p => packages.push({give: [a], picks: [p]})));
+    const results = [];
+    teams.forEach(t => {
+      const incoming = wanted ? [wanted] : byValue(t.players).filter(p => !pos || p.pos === pos || (NBA && (p.el || []).includes(pos))).slice(0, pos ? 3 : 6);
+      incoming.forEach(b => packages.forEach(pk => {
+        if (pos && pk.give.some(g => g.pos === pos)) return;   // don't fix a position by giving one up
+        const r = scoreTrade(ctx, t, pk.give, [b], pk.picks, []);
+        const theyMightSay = r.theirGain >= 0 && (r.valueEdge === null || r.valueEdge <= 0.1 * dynastyValue(b)) ? 'likely'
+          : r.theirGain >= -1.5 || (r.valueEdge !== null && r.valueEdge <= 0) ? 'maybe' : 'unlikely';
+        results.push({team: t, give: pk.give, picks: pk.picks, get: [b], r, theyMightSay,
+          score: style === 'fair' ? r.myGain + 0.5 * r.theirGain : r.myGain - 0.5 * r.theirGain + (r.valueEdge || 0) / 2000});
+      }));
+    });
+    const usable = results.filter(x => (wanted || x.r.myGain > 0.3) && (style === 'fair' ? x.theyMightSay === 'likely' : x.theyMightSay !== 'unlikely'));
+    const pool = usable.length ? usable : results;
+    pool.sort((a, b) => b.score - a.score);
+    const seen = new Set();
+    const top = pool.filter(x => { const k = x.team.id + x.give.map(plKey).join() + x.picks.map(p => p.id).join(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 6);
+    return {
+      note: usable.length ? undefined : 'Nothing met the bar for this style, so these are the closest options.',
+      trades: top.map(x => ({
+        partner: x.team.name, user_gives: x.give.map(p => p.name).concat(x.picks.map(p => pickName(p, tiers, L, me.id))),
+        give_pick_ids: x.picks.length ? x.picks.map(p => p.id) : undefined,
+        user_gets: x.get.map(p => p.name), user_pts_per_week: Math.round(10 * x.r.myGain) / 10, partner_pts_per_week: Math.round(10 * x.r.theirGain) / 10,
+        user_dynasty_value_edge: x.r.valueEdge === null ? undefined : x.r.valueEdge, partner_would_accept: x.theyMightSay,
+      })),
+    };
+  },
+
+  evaluate_trade(ctx, {partner, give, get, give_picks = [], get_picks = []}, log) {
+    const {L, A, me, profiles} = ctx;
+    const them = findLeagueTeam(L, partner);
+    if (!them || them.id === me.id) return {error: `No other team called "${partner}".`};
+    const pickOf = (team, ids) => {
+      const own = picksOn(ctx) ? draftPicks(L)[team.id] : [];
+      return ids.map(id => own.find(p => p.id === id) || id);
+    };
+    const resolve = (team, names) => names.map(n => {
+      const f = findLeaguePlayer(L, n);
+      return f && f.team.id === team.id ? f.pl : n;   // a name left as a string is reported as missing
+    });
+    const g = resolve(me, give), r = resolve(them, get), gp = pickOf(me, give_picks), rp = pickOf(them, get_picks);
+    const missing = [...g, ...r, ...gp, ...rp].filter(x => typeof x === 'string');
+    if (missing.length) return {error: `Not found on the right roster: ${missing.join(', ')}. ${me.name} has: ${me.players.map(p => p.name).join(', ')}. ${them.name} has: ${them.players.map(p => p.name).join(', ')}.`};
+    if (!g.length && !r.length && !gp.length && !rp.length) return {error: 'The trade is empty.'};
+    const s = scoreTrade(ctx, them, g, r, gp, rp);
+    const r0 = positionRanks(L, profiles), r1 = positionRanks(L, s.after);
+    const moved = team => Object.fromEntries(strengthBuckets(L).filter(p => r0[team.id][p] !== r1[team.id][p]).map(p => [posLabel(p), `${r0[team.id][p]} -> ${r1[team.id][p]}`]));
+    log({kind: 'trade', trade: {partner: them.id, give: g, get: r, givePicks: gp, getPicks: rp, myGain: s.myGain, theirGain: s.theirGain, valueEdge: s.valueEdge}});
+    return {
+      user_pts_per_week: `${signed(s.myGain)} (${fmt(profiles[me.id].total)} -> ${fmt(s.after[me.id].total)})`,
+      partner_pts_per_week: signed(s.theirGain),
+      user_position_rank_changes: moved(me), partner_position_rank_changes: moved(them),
+      user_must_drop: s.mineAfter.dropped.map(p => p.name), partner_must_drop: s.theirsAfter.dropped.map(p => p.name),
+      user_dynasty_value_edge: s.valueEdge === null ? undefined : s.valueEdge,
+    };
+  },
+};
+
+/** Tiny, safe markdown: escapes everything, then **bold** and "- " lists. */
+function chatText(text) {
+  const box = el('div', 'chat-text');
+  const esc = s => s.replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c])).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  let list = null;
+  text.split('\n').forEach(line => {
+    const item = line.match(/^\s*(?:[-*•]|\d+\.)\s+(.*)/);
+    if (item) { if (!list) { list = el('ul'); box.appendChild(list); } const li = el('li'); li.innerHTML = esc(item[1]); list.appendChild(li); return; }
+    list = null;
+    if (line.trim()) { const p = el('p'); p.innerHTML = esc(line); box.appendChild(p); }
+  });
+  return box;
+}
+
+function renderAssistant(ctx, box, openTrade) {
+  const {L, me, ranks, active} = ctx;
+  box.querySelectorAll(':scope > :not(h2):not(.desc)').forEach(n => n.remove());
+  if (!chat || chat.league !== active.key) chat = {league: active.key, messages: [], log: [], busy: false};
+
+  if (!claudeKey.get()) {
+    const form = el('form', 'chat-key');
+    form.appendChild(el('p', '', 'The assistant runs on Claude with your own Anthropic API key. Paste one to start: your key is saved only in this browser and sent only to Anthropic. Each question costs a few cents on your Anthropic account.'));
+    const row = el('div', 'tools');
+    const input = el('input'); input.type = 'password'; input.placeholder = 'sk-ant-...'; input.autocomplete = 'off'; input.style.flex = '1';
+    const save = el('button', 'btn', 'Save key'); save.type = 'submit';
+    row.appendChild(input); row.appendChild(save);
+    form.appendChild(row);
+    const help = el('p', 'note');
+    const a = el('a', '', 'Get a key from the Anthropic Console'); a.href = 'https://console.anthropic.com/settings/keys'; a.target = '_blank'; a.rel = 'noopener';
+    help.appendChild(a);
+    form.appendChild(help);
+    form.addEventListener('submit', e => { e.preventDefault(); if (input.value.trim()) { claudeKey.set(input.value.trim()); renderAssistant(ctx, box, openTrade); } });
+    box.appendChild(form);
+    return;
+  }
+
+  const logBox = el('div', 'chat-log');
+  box.appendChild(logBox);
+  const paint = () => {
+    logBox.replaceChildren();
+    if (!chat.log.length) {
+      const weakest = strengthBuckets(L).slice().sort((a, b) => ranks[me.id][b] - ranks[me.id][a])[0];
+      const star = L.teams.filter(t => t.id !== me.id).flatMap(t => t.players).sort((a, b) => rosValue(b) - rosValue(a))[0];
+      const ideas = [`I want to improve my ${posLabel(weakest)}`, star && `How can I get ${star.name} without overpaying?`,
+        "Who's the best team in the league, and why?", 'Which of my players should I sell high on?'].filter(Boolean);
+      const wrap = el('div', 'chat-ideas');
+      ideas.forEach(q => { const b = el('button', 'btn ghost', q); b.type = 'button'; b.addEventListener('click', () => send(q)); wrap.appendChild(b); });
+      logBox.appendChild(wrap);
+    }
+    chat.log.forEach(item => {
+      if (item.kind === 'trade') { logBox.appendChild(tradeCard(item.trade)); return; }
+      const m = el('div', 'msg ' + item.kind);
+      if (item.kind === 'bot') m.appendChild(chatText(item.text || '…')); else m.textContent = item.text;
+      logBox.appendChild(m);
+    });
+    logBox.scrollTop = logBox.scrollHeight;
+  };
+  const tradeCard = tr => {
+    const them = L.teams.find(t => t.id === tr.partner);
+    const tiers = pickTiers(L, ctx.A);
+    const names = (players, picks, owner) => players.map(p => p.name).concat(picks.map(p => pickName(p, tiers, L, owner))).join(', ') || 'nothing';
+    const card = el('div', 'chat-trade');
+    card.appendChild(el('div', '', `With ${them.name}`));
+    card.appendChild(el('div', 'desc', `You give: ${names(tr.give, tr.givePicks, me.id)}`));
+    card.appendChild(el('div', 'desc', `You get: ${names(tr.get, tr.getPicks, them.id)}`));
+    const nums = el('div', 'note', `You ${signed(tr.myGain)} pts/wk · ${them.name} ${signed(tr.theirGain)} pts/wk` +
+      (tr.valueEdge === null ? '' : ` · dynasty value ${tr.valueEdge >= 0 ? '+' : '−'}${Math.abs(tr.valueEdge).toLocaleString()} for you`));
+    card.appendChild(nums);
+    const b = el('button', 'btn ghost', 'Open in analyzer'); b.type = 'button';
+    b.addEventListener('click', () => {
+      const st = newTrade(active.key, them.id, tr.give.map(plKey), tr.get.map(plKey));
+      tr.givePicks.forEach(p => st.givePicks.add(p.id)); tr.getPicks.forEach(p => st.getPicks.add(p.id));
+      openTrade(st);
+    });
+    card.appendChild(b);
+    return card;
+  };
+
+  const form = el('form', 'chat-input');
+  const input = el('textarea'); input.rows = 2; input.placeholder = 'Ask about trades, your team or the league…';
+  const sendBtn = el('button', 'btn', 'Send'); sendBtn.type = 'submit';
+  form.appendChild(input); form.appendChild(sendBtn);
+  box.appendChild(form);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
+  form.addEventListener('submit', e => { e.preventDefault(); if (input.value.trim()) { send(input.value.trim()); input.value = ''; } });
+
+  const foot = el('div', 'tools');
+  foot.appendChild(el('span', 'note', 'Answers come from Claude using this page\'s numbers. Check a trade in the analyzer before you send it.'));
+  const btns = el('div');
+  const clearBtn = el('button', 'btn ghost', 'New chat'); clearBtn.type = 'button';
+  clearBtn.addEventListener('click', () => { if (chat.busy) return; chat = null; renderAssistant(ctx, box, openTrade); });
+  const keyBtn = el('button', 'btn ghost', 'Remove API key'); keyBtn.type = 'button';
+  keyBtn.addEventListener('click', () => { claudeKey.set(''); chat = null; renderAssistant(ctx, box, openTrade); });
+  btns.appendChild(clearBtn); btns.appendChild(document.createTextNode(' ')); btns.appendChild(keyBtn);
+  foot.appendChild(btns);
+  box.appendChild(foot);
+  const setBusy = busy => { chat.busy = busy; sendBtn.disabled = busy; clearBtn.disabled = busy; };
+  chat.view = {paint, setBusy};   // a reply in progress draws into whichever copy of the tab is on screen
+  setBusy(chat.busy);
+  paint();
+
+  async function send(text) {
+    if (chat.busy) return;
+    const session = chat;
+    const view = () => (chat === session ? session.view : {paint() {}, setBusy() {}});
+    const paint = () => view().paint();
+    view().setBusy(true);
+    const start = session.messages.length;
+    session.log.push({kind: 'user', text});
+    session.messages.push({role: 'user', content: text});
+    const status = {kind: 'status', text: 'Thinking…'};
+    session.log.push(status);
+    paint();
+    const log = item => { session.log.splice(session.log.indexOf(status), 0, item); paint(); };
+    try {
+      if (!claudeSdk) claudeSdk = (await import(CLAUDE_SDK)).default;
+      const Anthropic = claudeSdk;
+      const client = new Anthropic({apiKey: claudeKey.get(), dangerouslyAllowBrowser: true});
+      const system = ASSISTANT_RULES + '\n\n' + assistantContext(ctx);
+      let badJson = 0;
+      for (let turn = 0; turn < 8; turn++) {
+        let reply = null;
+        const stream = client.beta.messages.stream({
+          model: CLAUDE_MODEL, max_tokens: 16000, output_config: {effort: 'medium'},
+          betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
+          cache_control: {type: 'ephemeral'},
+          system, tools: ASSISTANT_TOOLS, messages: session.messages,
+        });
+        stream.on('text', delta => {
+          if (!reply) { reply = {kind: 'bot', text: ''}; log(reply); }
+          reply.text += delta;
+          paint();
+        });
+        let message;
+        try {
+          message = await stream.finalMessage();
+        } catch (err) {
+          // A tool input that streamed in as unreadable JSON: drop the partial reply and ask again (twice at most).
+          if (err instanceof Anthropic.APIError || badJson++ >= 2) throw err;
+          if (reply) session.log.splice(session.log.indexOf(reply), 1);
+          continue;
+        }
+        session.messages.push({role: 'assistant', content: message.content});
+        if (message.stop_reason === 'refusal') { log({kind: 'error', text: "Claude declined to answer that one. Try asking another way."}); break; }
+        if (message.stop_reason === 'pause_turn') continue;
+        const uses = message.content.filter(b => b.type === 'tool_use');
+        if (!uses.length) break;
+        if (message.stop_reason === 'max_tokens') { log({kind: 'error', text: 'That answer ran too long. Try a narrower question.'}); break; }
+        const results = [];
+        for (const use of uses) {
+          status.text = {get_team: 'Looking at a roster…', get_player: 'Looking up a player…', find_trades: 'Searching trades…', evaluate_trade: 'Checking a trade…'}[use.name] || 'Working…';
+          paint();
+          await new Promise(r => setTimeout(r, 0));   // let the status show before the search runs
+          const bad = assistantTools[use.name] ? badInput(use.name, use.input) : `unknown tool ${use.name}`;
+          let out;
+          try { out = bad ? {error: bad} : assistantTools[use.name](ctx, use.input, log); }
+          catch (e) { out = {error: e.message}; }
+          results.push({type: 'tool_result', tool_use_id: use.id, content: JSON.stringify(out), is_error: !!(bad || out.error)});
+        }
+        session.messages.push({role: 'user', content: results});
+      }
+    } catch (e) {
+      // An unfinished turn can't be sent again, so roll the history back to before this question.
+      session.messages.splice(start);
+      const A = claudeSdk;
+      const msg = A && e instanceof A.AuthenticationError ? 'Anthropic rejected that API key. Remove it and paste a new one.'
+        : A && e instanceof A.PermissionDeniedError ? "That API key isn't allowed to use this model."
+        : A && e instanceof A.RateLimitError ? 'Too many requests right now (or your Anthropic credit has run out). Try again in a minute.'
+        : A && e instanceof A.APIConnectionError ? "Couldn't reach Anthropic. Check your connection."
+        : A && e instanceof A.APIError ? `Anthropic returned an error: ${e.message}`
+        : `Something went wrong: ${e.message}`;
+      log({kind: 'error', text: msg});
+    }
+    session.log.splice(session.log.indexOf(status), 1);
+    session.busy = false;
+    view().setBusy(false);
+    paint();
+  }
 }
 
 let waiverPos = 'RB';
