@@ -2709,7 +2709,6 @@ function tradeMarket(ctx) {
   return {
     perceived,
     eliteQB: new Set((byPos.QB || []).slice(0, 3)),   // the only QBs that move the needle in a trade
-    goodTE: new Set((byPos.TE || []).slice(0, n)),    // startable tight ends
   };
 }
 
@@ -2718,9 +2717,8 @@ function tradeMarket(ctx) {
  * send: a player of yours to build the trade around; want: two positions to get back together ("a WR and an RB");
  * winBig: as much for you as they might still accept.
  *
- * Football trades are built the way managers actually trade: RBs and WRs for each other; a TE only to fix a weak TE
- * (or out of a pair of good ones); QBs only when you need one, as QB-plus-player swaps, unless he's a top-3 QB;
- * never kickers or defenses.
+ * Football trades are built the way managers actually trade: RBs and WRs for each other; a TE only when you ask
+ * about TE; QBs only when you need one, as QB-plus-player swaps, unless he's a top-3 QB; never kickers or defenses.
  */
 /** Which players make sense in a trade (see findTrades), for a search that may name a position or two. */
 function tradeRules(ctx, {pos, want} = {}) {
@@ -2729,14 +2727,13 @@ function tradeRules(ctx, {pos, want} = {}) {
   const market = tradeMarket(ctx);
   const needs = at => (ranks[me.id][at] || 0) > n / 2;
   const asked = at => pos === at || (want || []).includes(at);
-  const myTEs = me.players.filter(p => p.pos === 'TE').sort((a, b) => rosValue(b) - rosValue(a));
   return {
     market, needs,
-    canGive: p => NBA || ['RB', 'WR'].includes(p.pos) || market.eliteQB.has(p)
-      || (p.pos === 'TE' && p !== myTEs[0] && myTEs.filter(x => market.goodTE.has(x)).length >= 2),
+    // Tight ends only when you ask about TE (or name one), and then only coming to you.
+    canGive: p => NBA || ['RB', 'WR'].includes(p.pos) || market.eliteQB.has(p),
     canGet: p => NBA || ['RB', 'WR'].includes(p.pos)
       || (market.eliteQB.has(p) && (needs('QB') || asked('QB')))
-      || (p.pos === 'TE' && (needs('TE') || asked('TE'))),
+      || (p.pos === 'TE' && asked('TE')),
     plainQB: p => !NBA && !!p && p.pos === 'QB' && !market.eliteQB.has(p),
   };
 }
@@ -2867,9 +2864,14 @@ function assistantReply(ctx, text, memory = {}) {
   const buckets = strengthBuckets(L);
   const say = t => ({kind: 'bot', text: t});
   const cards = trades => trades.map(trade => ({kind: 'trade', trade}));
-  // A trade search: one deal per team, or up to five with one team. Remembered, so "focus on [team]" can narrow it.
+  // A trade search: one deal per team, or up to six with one team. Remembered, so "focus on [team]" can narrow it
+  // and "more" can show the next ones.
+  const dealKey = x => x.team.id + '|' + x.give.map(plKey).join() + '|' + x.get.map(plKey).join();
+  const tradeLines = shown => {
+    const tiers = pickTiers(L, A);
+    return shown.map((x, i) => `${i + 1}. Send **${x.give.map(p => p.name).concat(x.givePicks.map(p => pickName(p, tiers, L, me.id))).join(' + ')}** to ${x.team.name} for **${x.get.map(p => p.name).join(' + ')}**: you ${signed(x.myGain)} pts/wk, and ${ACCEPT[x.accept]}.`);
+  };
   const tradeList = (intro, opts, focus = opts.partner || (opts.target && L.teams.find(t => t.players.includes(opts.target)))) => {
-    memory.last = {intro, opts};
     const deals = findTrades(ctx, opts);
     // The best deal with each team, then the next-best ideas (something different coming back) to make about eight.
     let shown = focus ? deals.filter(x => x.team.id === focus.id).slice(0, 6) : bestPerTeam(deals);
@@ -2884,14 +2886,27 @@ function assistantReply(ctx, text, memory = {}) {
       return [say(`I couldn't find a trade${who}${focus && !opts.target ? ` with ${focus.name}` : ''} that makes your team better and that the other side might accept. ` +
         (opts.send ? `He's worth more in your lineup than what teams would give for him.` : opts.target ? `They value him more than anything you could send without hurting your own team.` : 'Try a different player, position or team, or build one in the analyzer below.'))];
     }
-    const tiers = pickTiers(L, A);
-    const lines = shown.map((x, i) => `${i + 1}. Send **${x.give.map(p => p.name).concat(x.givePicks.map(p => pickName(p, tiers, L, me.id))).join(' + ')}** to ${x.team.name} for **${x.get.map(p => p.name).join(' + ')}**: you ${signed(x.myGain)} pts/wk, and ${ACCEPT[x.accept]}.`);
-    const footer = focus ? 'Open one in the analyzer to fine-tune it.'
-      : `Those are the best ideas across the league. Say "focus on [team]" for more with one team.`;
-    return [say([intro, ...lines, footer].join('\n'))].concat(cards(shown));
+    memory.last = {intro, opts, focus, shown: new Set(shown.map(dealKey))};
+    const left = deals.filter(x => (!focus || x.team.id === focus.id) && !memory.last.shown.has(dealKey(x))).length;
+    const footer = (focus ? 'Open one in the analyzer to fine-tune it.' : 'Those are the best ideas across the league. Say "focus on [team]" for more with one team.')
+      + (left ? ` Say "more" to see ${left > 8 ? 'more' : `${left} more`}.` : '');
+    return [say([intro, ...tradeLines(shown), footer].join('\n'))].concat(cards(shown));
+  };
+  const moreTrades = () => {
+    const last = memory.last;
+    const deals = findTrades(ctx, last.opts).filter(x => (!last.focus || x.team.id === last.focus.id) && !last.shown.has(dealKey(x)));
+    const shown = deals.slice(0, last.focus ? 6 : 8);
+    if (!shown.length) return [say(`That's every trade I found for that ask that makes your team better. Try another player, position or team.`)];
+    shown.forEach(x => last.shown.add(dealKey(x)));
+    const left = deals.length - shown.length;
+    return [say([`More trades${last.focus ? ` with ${last.focus.name}` : ''}:`, ...tradeLines(shown),
+      left ? `Say "more" to see ${left > 8 ? 'more' : `${left} more`}.` : "That's all of them."].join('\n'))].concat(cards(shown));
   };
 
   if (/\b(help|what can you|how do i use|examples?)\b/.test(low)) return [say(ASSISTANT_HELP)];
+
+  // "More": the next trades from the last search.
+  if (!team && memory.last && /^\W*(show |give me |any |some |list )?(more|next|others?|keep going|again)\b/.test(low.trim())) return moreTrades();
 
   // "Focus on Team A": the last search again, with that team only.
   if (team && /\b(focus|more|just|only|zoom|stick|narrow)\b/.test(low)) {
@@ -3002,7 +3017,7 @@ function assistantReply(ctx, text, memory = {}) {
 const ASSISTANT_HELP = `I can help with:
 - Trades for a player: "how can I get [player]?" or "fleece [team] for [player]"
 - Upgrading a position: "improve my ${NBA ? 'C' : 'QB'}" or "get a better ${NBA ? 'PG' : 'RB'} from [team]"
-- More options with one team, after any trade search: "focus on [team]"
+- After any trade search: "more" for the next ideas, or "focus on [team]" for more with one team
 - Selling: "who should I sell?", "what can I get for [player]?" or "what can I get for [player]? I want a ${NBA ? 'PG and a C' : 'WR and an RB'}"
 - Your team, another team or a player: "how is my team?", "tell me about [team]", "[player name]"
 - The league: "who's the best team?"
