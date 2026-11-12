@@ -2726,34 +2726,35 @@ function findTrades(ctx, {target, pos, partner, send, want, winBig}) {
       if (pos && !send && !want && pk.give.some(g => plays(g, pos))) return;   // don't fix a position by giving one up
       const r = scoreTrade(ctx, t, pk.give, get, pk.picks, []);
       const getValue = get.reduce((s, p) => s + dynastyValue(p), 0);
+      const sentValue = pk.give.reduce((s, p) => s + dynastyValue(p), 0) + pk.picks.reduce((s, p) => s + pickValue(p, tiers), 0);
       const accept = r.theirGain >= 0 && (r.valueEdge === null || r.valueEdge <= 0.1 * getValue) ? 'likely'
         : r.theirGain >= -1.5 || (r.valueEdge !== null && r.valueEdge <= 0) ? 'maybe' : 'unlikely';
-      out.push({team: t, give: pk.give, givePicks: pk.picks, get, getPicks: [], ...r, accept,
+      out.push({team: t, give: pk.give, givePicks: pk.picks, get, getPicks: [], ...r, accept, sentValue,
         score: winBig ? r.myGain - 0.5 * r.theirGain + (r.valueEdge || 0) / 2000 : r.myGain + 0.5 * r.theirGain});
     }));
   });
-  const ok = out.filter(x => (target || send || x.myGain > 0.3) && (winBig ? x.accept !== 'unlikely' : x.accept === 'likely'));
-  let pool = (ok.length ? ok : out).sort((a, b) => b.score - a.score);
-  // Leave out options that cost you far more than the best one: they're the same idea, overpaid.
-  const bestGain = Math.max(...pool.map(x => x.myGain));
-  pool = pool.filter(x => x.myGain >= bestGain - 4);
-  // Around one of your players: lead with the best deal for him alone, if there is one.
-  const alone = send && pool.find(x => x.give.length === 1);
-  if (alone) pool = [alone].concat(pool.filter(x => x !== alone));
+  // Never a trade that makes your team worse (this season's points, and in dynasty leagues long-term value too),
+  // and never one the other side would obviously refuse.
+  const better = out.filter(x => x.myGain > 0.1 && (x.valueEdge === null || x.valueEdge >= -0.1 * x.sentValue) && x.accept !== 'unlikely');
+  // Fair asks lead with deals they should accept; either way, sending him alone beats adding a player.
+  better.forEach(x => { if (send && x.give.length > 1) x.score -= 0.5; });
+  better.sort((a, b) => (winBig ? 0 : (b.accept === 'likely') - (a.accept === 'likely')) || b.score - a.score);
   const seen = new Set();
-  const top = pool.filter(x => {
+  return better.filter(x => {
     // One version of each deal: the same players with a different pick thrown in isn't a new idea.
     const k = x.team.id + '|' + x.give.map(plKey).join() + '|' + x.get.map(plKey).join();
     if (seen.has(k)) return false; seen.add(k); return true;
-  }).slice(0, 3);
-  return {trades: top, closest: !ok.length};
+  });
 }
+
+/** The best deal with each team (deals come best first). */
+const bestPerTeam = deals => deals.filter((x, i) => deals.findIndex(y => y.team === x.team) === i);
 
 const ACCEPT = {likely: 'they should say yes', maybe: "it's a maybe for them", unlikely: "they'd probably say no"};
 const recordOf = s => `${s.w}-${s.l}${s.t ? '-' + s.t : ''}`;
 
 /** The assistant's reply to one message: [{kind: 'bot', text} | {kind: 'trade', trade}]. */
-function assistantReply(ctx, text) {
+function assistantReply(ctx, text, memory = {}) {
   const {L, A, me, profiles, ranks} = ctx;
   const {team, players, ambiguous, pos, positions, rest: low} = mentions(L, me, text);
   const sellWords = /\b(sell|trade|move|shop|get for|deal|offer)\b/;
@@ -2776,19 +2777,35 @@ function assistantReply(ctx, text) {
   const buckets = strengthBuckets(L);
   const say = t => ({kind: 'bot', text: t});
   const cards = trades => trades.map(trade => ({kind: 'trade', trade}));
-  const tradeList = (intro, res) => {
-    if (!res.trades.length) return [say("I couldn't find a trade that works. Try a different player or team, or build one in the analyzer below.")];
+  // A trade search: one deal per team, or up to five with one team. Remembered, so "focus on [team]" can narrow it.
+  const tradeList = (intro, opts, focus = opts.partner || (opts.target && L.teams.find(t => t.players.includes(opts.target)))) => {
+    memory.last = {intro, opts};
+    const deals = findTrades(ctx, opts);
+    const shown = focus ? deals.filter(x => x.team.id === focus.id).slice(0, 5) : bestPerTeam(deals);
+    if (!shown.length) {
+      const who = opts.send ? ` for ${opts.send.name}` : opts.target ? ` for ${opts.target.name}` : '';
+      return [say(`I couldn't find a trade${who}${focus && !opts.target ? ` with ${focus.name}` : ''} that makes your team better and that the other side might accept. ` +
+        (opts.send ? `He's worth more in your lineup than what teams would give for him.` : opts.target ? `They value him more than anything you could send without hurting your own team.` : 'Try a different player, position or team, or build one in the analyzer below.'))];
+    }
     const tiers = pickTiers(L, A);
-    const lines = res.trades.map((x, i) => `${i + 1}. Send **${x.give.map(p => p.name).concat(x.givePicks.map(p => pickName(p, tiers, L, me.id))).join(' + ')}** to ${x.team.name} for **${x.get.map(p => p.name).join(' + ')}**: you ${signed(x.myGain)} pts/wk, and ${ACCEPT[x.accept]}.`);
-    return [say([intro, ...lines, res.closest ? 'Nothing cleared the bar, so these are the closest.' : 'Open one in the analyzer to fine-tune it.'].join('\n'))].concat(cards(res.trades));
+    const lines = shown.map((x, i) => `${i + 1}. Send **${x.give.map(p => p.name).concat(x.givePicks.map(p => pickName(p, tiers, L, me.id))).join(' + ')}** to ${x.team.name} for **${x.get.map(p => p.name).join(' + ')}**: you ${signed(x.myGain)} pts/wk, and ${ACCEPT[x.accept]}.`);
+    const footer = focus ? 'Open one in the analyzer to fine-tune it.'
+      : `That's the best option with each team${shown.length < L.teams.length - 1 ? ' that has one' : ''}. Say "focus on [team]" for more with one of them.`;
+    return [say([intro, ...lines, footer].join('\n'))].concat(cards(shown));
   };
 
   if (/\b(help|what can you|how do i use|examples?)\b/.test(low)) return [say(ASSISTANT_HELP)];
 
+  // "Focus on Team A": the last search again, with that team only.
+  if (team && /\b(focus|more|just|only|zoom|stick|narrow)\b/.test(low)) {
+    const last = memory.last;
+    if (last && !last.opts.target) return tradeList(`${last.intro.replace(/:$/, '')}, with ${team.name} only:`, Object.assign({}, last.opts, {partner: team}));
+    return tradeList(`The best trades with ${team.name}:`, {partner: team});
+  }
+
   // Selling one of your players
   if (mineNamed && sellWords.test(low)) {
-    const res = findTrades(ctx, {send: mineNamed.pl, partner: team, pos: want ? null : pos, want, winBig: /fleece|steal|rob|rip|lopsided|win big/.test(low)});
-    return tradeList(`The best returns for **${mineNamed.pl.name}**${wantText}:`, res);
+    return tradeList(`The best returns for **${mineNamed.pl.name}**${wantText}:`, {send: mineNamed.pl, partner: team, pos: want ? null : pos, want, winBig: /fleece|steal|rob|rip|lopsided|win big/.test(low)});
   }
   const askedFor = !players.length && low.match(/(?:get for|sell|trade away|shop)\s+([a-z][a-z .'-]{1,30}?)\s*(?:[,?.!]|$|\s(?:i|and|to|for)\s)/);
   if (askedFor && !/^(my|a|an|the|someone|anyone|players?)\b/.test(askedFor[1])) {
@@ -2799,7 +2816,7 @@ function assistantReply(ctx, text) {
       .filter(x => rosValue(x.p) > 2 && x.loss < 0.5 * rosValue(x.p))
       .sort((a, b) => (rosValue(b.p) - b.loss) - (rosValue(a.p) - a.loss)).slice(0, 3);
     if (!sellable.length) return [say('Everyone valuable on your roster is pulling their weight in your lineup, so there is no obvious player to sell.')];
-    const best = findTrades(ctx, {send: sellable[0].p}).trades.slice(0, 1);
+    const best = findTrades(ctx, {send: sellable[0].p}).slice(0, 1);
     return [say(['These players are worth more to other teams than to you, because your lineup barely uses them:',
       ...sellable.map(x => `- **${x.p.name}**: ${fmt(rosValue(x.p))} pts/wk, but losing him costs your lineup only ${fmt(x.loss)} pts/wk.`),
       best.length ? `Here's the best deal I found for ${sellable[0].p.name}. Ask "what can I get for [player]?" for more.` : ''].filter(Boolean).join('\n'))].concat(cards(best));
@@ -2809,18 +2826,18 @@ function assistantReply(ctx, text) {
   const winBig = /fleece|steal|rob\b|rip (them|him|her) off|lopsided|win (the trade|big)|robbery|smash/.test(low);
   const wantsTrade = winBig || /\b(trade|get|acquire|target|upgrade|improve|better|need|buy|deal|offer|land|grab|want)\b/.test(low);
   if (wantsTrade && theirs) {
-    return tradeList(`Ways to get **${theirs.pl.name}** from ${theirs.team.name}${winBig ? ', getting as much as you can' : ''}:`, findTrades(ctx, {target: theirs.pl, winBig}));
+    return tradeList(`Ways to get **${theirs.pl.name}** from ${theirs.team.name}${winBig ? ', getting as much as you can' : ''}:`, {target: theirs.pl, winBig});
   }
   if (wantsTrade && want && !/pick ?up|waiver|free agent/.test(low)) {
-    return tradeList(`The best trades that bring back ${wantText.slice(5)}${team ? ` from ${team.name}` : ''}:`, findTrades(ctx, {want, partner: team, winBig}));
+    return tradeList(`The best trades that bring back ${wantText.slice(5)}${team ? ` from ${team.name}` : ''}:`, {want, partner: team, winBig});
   }
   if (wantsTrade && (pos || /\b(upgrade|improve|better|weak|need)\b/.test(low)) && !/pick ?up|waiver|free agent/.test(low)) {
     const at = pos || buckets.filter(b => b !== 'FLEX').sort((a, b) => ranks[me.id][b] - ranks[me.id][a])[0];
     const rank = ranks[me.id][at] || n;
     const intro = `Your ${posLabel(at)} is ${ordinal(rank)} of ${n}${pos ? '' : ', your weakest spot'}${rank <= 3 ? ', so upgrades there are small' : ''}. ${team ? `Upgrades from ${team.name}` : 'The best upgrades'}${winBig ? ', getting as much as you can' : ''}:`;
-    return tradeList(intro, findTrades(ctx, {pos: at, partner: team, winBig}));
+    return tradeList(intro, {pos: at, partner: team, winBig});
   }
-  if (wantsTrade && team) return tradeList(`The best trades with ${team.name}${winBig ? ', getting as much as you can' : ''}:`, findTrades(ctx, {partner: team, winBig}));
+  if (wantsTrade && team) return tradeList(`The best trades with ${team.name}${winBig ? ', getting as much as you can' : ''}:`, {partner: team, winBig});
 
   // Waivers
   if (/pick ?up|waiver|free agent|\badd\b|stream/.test(low)) {
@@ -2887,6 +2904,7 @@ function assistantReply(ctx, text) {
 const ASSISTANT_HELP = `I can help with:
 - Trades for a player: "how can I get [player]?" or "fleece [team] for [player]"
 - Upgrading a position: "improve my ${NBA ? 'C' : 'QB'}" or "get a better ${NBA ? 'PG' : 'RB'} from [team]"
+- More options with one team, after any trade search: "focus on [team]"
 - Selling: "who should I sell?", "what can I get for [player]?" or "what can I get for [player]? I want a ${NBA ? 'PG and a C' : 'WR and an RB'}"
 - Your team, another team or a player: "how is my team?", "tell me about [team]", "[player name]"
 - The league: "who's the best team?"
@@ -2987,7 +3005,7 @@ function renderAssistant(ctx, box, openTrade) {
     // Trade searches take a moment, so let the "working" line show first.
     setTimeout(() => {
       let reply;
-      try { reply = assistantReply(ctx, text); }
+      try { reply = assistantReply(ctx, text, session); }
       catch (e) { reply = [{kind: 'bot', text: `Something went wrong: ${e.message}`}]; }
       session.log.splice(session.log.indexOf(status), 1, ...reply);
       session.busy = false;
