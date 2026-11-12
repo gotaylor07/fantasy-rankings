@@ -2684,54 +2684,132 @@ function scoreTrade(ctx, them, give, get, givePicks = [], getPicks = []) {
 }
 
 /**
+ * How the rest of the league sees players, for judging what a manager would accept. Stars are worth more than
+ * their points (people overpay for them), backups at deep positions next to nothing, so a pile of depth won't buy
+ * a star but two good starters might. Dynasty leagues use the market's trade values, which are curved the same way.
+ */
+function tradeMarket(ctx) {
+  const {L} = ctx;
+  const n = L.teams.length;
+  const rostered = L.teams.flatMap(t => t.players);
+  const byPos = {};
+  rostered.forEach(p => (byPos[p.pos] = byPos[p.pos] || []).push(p));
+  Object.values(byPos).forEach(list => list.sort((a, b) => rosValue(b) - rosValue(a)));
+  // Replacement level: about the last starter at each position across the league.
+  const flex = L.slots.filter(s => (SLOT_ELIG[s] || []).length > 1);
+  const startersAt = pos => L.slots.filter(s => (SLOT_ELIG[s] || []).length === 1 && SLOT_ELIG[s][0] === pos).length
+    + flex.filter(s => SLOT_ELIG[s].includes(pos)).length * (pos === 'TE' ? 0.1 : pos === 'QB' ? 1 : 0.45);
+  const repl = {};
+  Object.entries(byPos).forEach(([pos, list]) => { const at = list[Math.min(list.length - 1, Math.round(n * startersAt(pos)))]; repl[pos] = at ? rosValue(at) : 0; });
+  const perceived = pl => (picksOn(ctx) ? dynastyValue(pl)
+    : NBA ? rosValue(pl) ** 1.5 : Math.max(0, rosValue(pl) - (repl[pl.pos] || 0)) ** 1.5);
+  return {
+    perceived,
+    eliteQB: new Set((byPos.QB || []).slice(0, 3)),   // the only QBs that move the needle in a trade
+    goodTE: new Set((byPos.TE || []).slice(0, n)),    // startable tight ends
+  };
+}
+
+/**
  * Trades for the user's team. target: a player to get; pos: a position to improve; partner: one team only;
  * send: a player of yours to build the trade around; want: two positions to get back together ("a WR and an RB");
  * winBig: as much for you as they might still accept.
+ *
+ * Football trades are built the way managers actually trade: RBs and WRs for each other; a TE only to fix a weak TE
+ * (or out of a pair of good ones); QBs only when you need one, as QB-plus-player swaps, unless he's a top-3 QB;
+ * never kickers or defenses.
  */
+/** Which players make sense in a trade (see findTrades), for a search that may name a position or two. */
+function tradeRules(ctx, {pos, want} = {}) {
+  const {L, me, ranks} = ctx;
+  const n = L.teams.length;
+  const market = tradeMarket(ctx);
+  const needs = at => (ranks[me.id][at] || 0) > n / 2;
+  const asked = at => pos === at || (want || []).includes(at);
+  const myTEs = me.players.filter(p => p.pos === 'TE').sort((a, b) => rosValue(b) - rosValue(a));
+  return {
+    market, needs,
+    canGive: p => NBA || ['RB', 'WR'].includes(p.pos) || market.eliteQB.has(p)
+      || (p.pos === 'TE' && p !== myTEs[0] && myTEs.filter(x => market.goodTE.has(x)).length >= 2),
+    canGet: p => NBA || ['RB', 'WR'].includes(p.pos)
+      || (market.eliteQB.has(p) && (needs('QB') || asked('QB')))
+      || (p.pos === 'TE' && (needs('TE') || asked('TE'))),
+    plainQB: p => !NBA && !!p && p.pos === 'QB' && !market.eliteQB.has(p),
+  };
+}
+
 function findTrades(ctx, {target, pos, partner, send, want, winBig}) {
   const {L, A, me} = ctx;
   let teams = L.teams.filter(t => t.id !== me.id);
   if (target) teams = teams.filter(t => t.players.includes(target));
   if (partner) teams = teams.filter(t => t.id === partner.id);
+  const {market, needs, canGive, canGet, plainQB} = tradeRules(ctx, {pos, want});
   const byValue = list => list.filter(p => rosValue(p) > 0.5).sort((a, b) => rosValue(b) - rosValue(a));
   const plays = (p, at) => p.pos === at || (NBA && (p.el || []).includes(at));
-  const mine = byValue(me.players).slice(0, 12);
+  const skillOnly = p => ['RB', 'WR'].includes(p.pos);
+  const mine = byValue(me.players).filter(p => p !== send && canGive(p)).slice(0, 12);
   const tiers = pickTiers(L, A);
   const myPicks = picksOn(ctx) ? draftPicks(L)[me.id].slice().sort((a, b) => pickValue(b, tiers) - pickValue(a, tiers)).slice(0, 5) : [];
-  // What you could send: one player, two players, or (dynasty) a player plus a pick.
-  let packages;
-  if (send && want) {
-    // Two players back usually takes a little more than one: your player alone, or with one more of yours.
-    packages = [{give: [send], picks: []}].concat(mine.filter(p => p !== send).slice(0, 8).map(p => ({give: [send, p], picks: []})));
-  } else if (send) packages = [{give: [send], picks: []}];
-  else if (want) {
-    const spare = mine.filter(p => !want.some(at => plays(p, at)));
-    packages = spare.slice(0, 8).map(a => ({give: [a], picks: []}));
-    for (let i = 0; i < 6 && i < spare.length; i++) for (let j = i + 1; j < 6 && j < spare.length; j++) packages.push({give: [spare[i], spare[j]], picks: []});
-  } else {
-    packages = mine.map(a => ({give: [a], picks: []}));
-    for (let i = 0; i < 8 && i < mine.length; i++) for (let j = i + 1; j < 8 && j < mine.length; j++) packages.push({give: [mine[i], mine[j]], picks: []});
-    mine.slice(0, 8).forEach(a => myPicks.forEach(p => packages.push({give: [a], picks: [p]})));
+  const deals = [];   // [team, give, picks, get]
+
+  // QB swaps: your QB and a player for theirs and a player, when you need a QB (or name one who isn't elite).
+  const swaps = !NBA && (pos === 'QB' || plainQB(target) || plainQB(send) || (!pos && !want && !send && !target && needs('QB')));
+  if (swaps) {
+    const myQB = plainQB(send) ? send : byValue(me.players).find(p => p.pos === 'QB');
+    if (myQB) teams.forEach(t => {
+      const theirQBs = plainQB(target) ? [target]
+        : byValue(t.players).filter(p => p.pos === 'QB' && (plainQB(send) || rosValue(p) > rosValue(myQB))).slice(0, 2);
+      const extras = byValue(t.players).filter(skillOnly).slice(0, 4);
+      theirQBs.forEach(q => mine.filter(skillOnly).slice(0, 6).forEach(x => extras.forEach(y => deals.push([t, [myQB, x], [], [q, y]]))));
+    });
   }
-  const out = [];
-  teams.forEach(t => {
-    let incoming;
-    if (want) {
-      // Every pair of their players that covers both positions, from their best few at each.
-      const at = want.map(w => byValue(t.players).filter(p => plays(p, w)).slice(0, 4));
-      incoming = [];
-      at[0].forEach(a => at[1].forEach(b => { if (a !== b && !incoming.some(([x, y]) => x === b && y === a)) incoming.push([a, b]); }));
-    } else incoming = (target ? [target] : byValue(t.players).filter(p => !pos || plays(p, pos)).slice(0, pos ? 3 : 6)).map(b => [b]);
-    incoming.forEach(get => packages.forEach(pk => {
-      if (pos && !send && !want && pk.give.some(g => plays(g, pos))) return;   // don't fix a position by giving one up
-      const r = scoreTrade(ctx, t, pk.give, get, pk.picks, []);
-      const getValue = get.reduce((s, p) => s + dynastyValue(p), 0);
-      const sentValue = pk.give.reduce((s, p) => s + dynastyValue(p), 0) + pk.picks.reduce((s, p) => s + pickValue(p, tiers), 0);
-      const accept = r.theirGain >= 0 && (r.valueEdge === null || r.valueEdge <= 0.1 * getValue) ? 'likely'
-        : r.theirGain >= -1.5 || (r.valueEdge !== null && r.valueEdge <= 0) ? 'maybe' : 'unlikely';
-      out.push({team: t, give: pk.give, givePicks: pk.picks, get, getPicks: [], ...r, accept, sentValue,
-        score: winBig ? r.myGain - 0.5 * r.theirGain + (r.valueEdge || 0) / 2000 : r.myGain + 0.5 * r.theirGain});
-    }));
+
+  // Everything else (a non-elite QB named in the request is only ever traded in a swap, above).
+  if (!plainQB(target) && !plainQB(send)) {
+    let packages;
+    if (send) packages = [[send]].concat(want ? mine.slice(0, 8).map(p => [send, p]) : []);
+    else {
+      const spare = want ? mine.filter(p => !want.some(at => plays(p, at))) : mine;
+      packages = spare.slice(0, 12).map(a => [a]);
+      for (let i = 0; i < 8 && i < spare.length; i++) for (let j = i + 1; j < 8 && j < spare.length; j++) packages.push([spare[i], spare[j]]);
+    }
+    packages = packages.map(give => ({give, picks: []}));
+    if (!send && !want) mine.slice(0, 8).forEach(a => myPicks.forEach(p => packages.push({give: [a], picks: [p]})));
+    teams.forEach(t => {
+      const theirs = byValue(t.players);
+      let incoming;
+      if (want) {
+        // Every pair of their players that covers both positions, from their best few at each.
+        const at = want.map(w => theirs.filter(p => plays(p, w)).slice(0, 4));
+        incoming = [];
+        at[0].forEach(a => at[1].forEach(b => { if (a !== b && !incoming.some(([x, y]) => x === b && y === a)) incoming.push([a, b]); }));
+      } else if (target) incoming = [[target]];
+      else {
+        const gettable = theirs.filter(p => canGet(p) && (!pos || plays(p, pos)));
+        incoming = gettable.slice(0, pos ? 3 : 6).map(b => [b]);
+        // Selling a star: teams will often pay two good starters for one.
+        if (send) {
+          const two = theirs.filter(p => canGet(p) && !plainQB(p)).slice(0, 5);
+          for (let i = 0; i < two.length; i++) for (let j = i + 1; j < two.length; j++) incoming.push([two[i], two[j]]);
+        }
+      }
+      incoming.forEach(get => packages.forEach(pk => {
+        if (pos && !send && !want && pk.give.some(g => plays(g, pos))) return;   // don't fix a position by giving one up
+        deals.push([t, pk.give, pk.picks, get]);
+      }));
+    });
+  }
+
+  const out = deals.map(([t, give, picks, get]) => {
+    const r = scoreTrade(ctx, t, give, get, picks, []);
+    const sentValue = give.reduce((s, p) => s + dynastyValue(p), 0) + picks.reduce((s, p) => s + pickValue(p, tiers), 0);
+    // Would they take it? Mostly how the deal looks to them (what they get against what they give), and a bit
+    // whether it helps their lineup. People like to make trades happen, so only a clearly bad look is a no.
+    const look = (give.reduce((s, p) => s + market.perceived(p), 0) + picks.reduce((s, p) => s + pickValue(p, tiers), 0))
+      / Math.max(1e-6, get.reduce((s, p) => s + market.perceived(p), 0));
+    const accept = look >= 1 || (r.theirGain >= 0 && look >= 0.85) ? 'likely' : look >= 0.75 || r.theirGain >= 0 ? 'maybe' : 'unlikely';
+    return {team: t, give, givePicks: picks, get, getPicks: [], ...r, accept, sentValue,
+      score: winBig ? r.myGain - 0.5 * r.theirGain + (r.valueEdge || 0) / 2000 : r.myGain + 0.5 * r.theirGain};
   });
   // Never a trade that makes your team worse (this season's points, and in dynasty leagues long-term value too),
   // and never one the other side would obviously refuse.
@@ -2812,7 +2890,8 @@ function assistantReply(ctx, text, memory = {}) {
     return [say(`I couldn't find a player called "${askedFor[1].trim()}" in this league. Try his full name or last name.`)];
   }
   if (/\b(sell|sell high|trade away|get rid|shop|expendable|surplus|depth)\b/.test(low)) {
-    const sellable = me.players.map(p => ({p, loss: profiles[me.id].total - profile(L, me.players.filter(x => x !== p)).total}))
+    const {canGive} = tradeRules(ctx);
+    const sellable = me.players.filter(canGive).map(p => ({p, loss: profiles[me.id].total - profile(L, me.players.filter(x => x !== p)).total}))
       .filter(x => rosValue(x.p) > 2 && x.loss < 0.5 * rosValue(x.p))
       .sort((a, b) => (rosValue(b.p) - b.loss) - (rosValue(a.p) - a.loss)).slice(0, 3);
     if (!sellable.length) return [say('Everyone valuable on your roster is pulling their weight in your lineup, so there is no obvious player to sell.')];
