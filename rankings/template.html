@@ -2601,28 +2601,72 @@ function findLeaguePlayer(L, name) {
 const POS_WORDS = Object.entries(NBA
   ? {'point guards?': 'PG', 'shooting guards?': 'SG', 'small forwards?': 'SF', 'power forwards?': 'PF', 'cent(?:er|re)s?': 'C', 'bigs?': 'C', 'pgs?': 'PG', 'sgs?': 'SG', 'sfs?': 'SF', 'pfs?': 'PF', c: 'C'}
   : {'quarterbacks?': 'QB', 'running ?backs?': 'RB', 'wide receivers?': 'WR', 'receivers?': 'WR', 'tight ends?': 'TE', 'kickers?': 'K', 'defen[cs]es?': 'DEF', 'd/st': 'DEF', dst: 'DEF', def: 'DEF', 'qbs?': 'QB', 'rbs?': 'RB', 'wrs?': 'WR', 'tes?': 'TE', k: 'K'})
-  .map(([w, pos]) => [new RegExp(`(^|[^a-z/])${w}($|[^a-z])`), pos]);
+  .map(([w, pos]) => [new RegExp(`(^|[^a-z/])((?:two |2 |a pair of )?)${w}(?=$|[^a-z])`), pos]);
 
-/** Teams, players and a position named in a message. */
+// Short words that could pass for a player's initials but never mean one.
+const NOT_INITIALS = new Set('the and for who can get you are not but any how why did was has his her him out top new now one two all off way via who his its may say see use try let ask buy big win'.split(' '));
+
+/** Every short name a player might be called by: last name, first name, and initials ("JSN", "CMC"). */
+function nicknames(name) {
+  const words = normName(name).split(' ').filter(w => !SUFFIXES.has(w));
+  const parts = name.replace(/[.']/g, '').split(/[\s-]+/).filter(w => w && !SUFFIXES.has(w.toLowerCase()));
+  const out = [];
+  if (words.length > 1 && words[words.length - 1].length >= 4) out.push(['last', words[words.length - 1]]);
+  if (words.length > 1 && words[0].length >= 3) out.push(['first', words[0]]);
+  const initials = parts.map(w => w[0]).join('').toLowerCase();
+  const capitals = (name.match(/[A-Z]/g) || []).join('').toLowerCase();   // McCaffrey counts as M and C
+  new Set([initials, capitals]).forEach(i => { if (i.length >= 3) out.push(['initials', i]); });
+  return out;
+}
+
+/**
+ * Teams, players and positions named in a message. A player can be named in full or by a short name;
+ * a short name several players share comes back in `ambiguous` instead.
+ */
 function mentions(L, me, text) {
   const low = text.toLowerCase();
   const norm = ' ' + normName(text) + ' ';
   const teams = L.teams.filter(t => low.includes(t.name.toLowerCase()) || ((t.owner || '').length >= 3 && new RegExp(`\\b${t.owner.toLowerCase().replace(/[^a-z0-9]/g, '.')}\\b`).test(low)))
     .sort((a, b) => b.name.length - a.name.length);
-  const rostered = L.teams.flatMap(team => team.players.map(pl => ({pl, team})));
-  const pool = rostered.concat(availablePlayers(L).map(pl => ({pl, team: null})));
-  const lastNames = {};
-  pool.forEach(x => { const last = normName(x.pl.name).split(' ').filter(w => w.length > 2).pop(); if (last) (lastNames[last] = lastNames[last] || []).push(x); });
-  let players = pool.filter(x => norm.includes(' ' + normName(x.pl.name) + ' '));
-  if (!players.length) {   // a last name on its own, if only one player has it
-    Object.entries(lastNames).forEach(([last, xs]) => { if (last.length >= 4 && xs.length === 1 && norm.includes(' ' + last + ' ')) players.push(xs[0]); });
-  }
-  // The message with the names taken out, so a team called "Waiver Wire Warriors" doesn't read as a waiver question.
+  // Team names come out first, so "Waiver Wire Warriors" doesn't read as a waiver question or a player.
   let rest = low;
   teams.forEach(t => { rest = rest.split(t.name.toLowerCase()).join(' '); });
-  players.forEach(x => { rest = rest.split(x.pl.name.toLowerCase()).join(' '); });
-  const hit = POS_WORDS.find(([re]) => re.test(rest));
-  return {team: teams.find(t => t.id !== me.id) || null, players, pos: hit ? hit[1] : null, rest};
+  const rostered = L.teams.flatMap(team => team.players.map(pl => ({pl, team})));
+  const free = availablePlayers(L).map(pl => ({pl, team: null}));
+  let players = rostered.concat(free).filter(x => norm.includes(' ' + normName(x.pl.name) + ' '));
+  let ambiguous = null;
+  if (!players.length) {
+    // Short names, checked against rostered players first: they're who people talk about in trades.
+    const shouted = new Set((text.match(/\b[A-Z]{2,5}\b/g) || []).map(w => w.toLowerCase()));
+    const words = new Set(normName(rest).split(' '));
+    for (const group of [rostered, free]) {
+      const hits = {};
+      group.forEach(x => nicknames(x.pl.name).forEach(([kind, nick]) => {
+        if (!words.has(nick) || (kind === 'initials' && NOT_INITIALS.has(nick) && !shouted.has(nick))) return;
+        (hits[nick] = hits[nick] || []).push(x);
+      }));
+      const found = Object.entries(hits);
+      if (!found.length) continue;
+      found.forEach(([nick, xs]) => { if (xs.length === 1) players.push(xs[0]); else if (!ambiguous) ambiguous = {nick, options: xs, initials: xs.some(x => nicknames(x.pl.name).some(([k, n]) => k === 'initials' && n === nick))}; });
+      break;
+    }
+    if (players.length) ambiguous = null;
+  }
+  players.forEach(x => { rest = rest.split(x.pl.name.toLowerCase()).join(' '); nicknames(x.pl.name).forEach(([, nick]) => { rest = rest.replace(new RegExp(`\\b${nick}\\b`), ' '); }); });
+  // Positions, in the order they're mentioned ("a WR and an RB", "two receivers").
+  const positions = [];
+  let scan = rest;
+  POS_WORDS.forEach(([re, pos]) => {
+    for (let m = scan.match(re); m; m = scan.match(re)) {
+      const at = m.index + m[1].length;
+      positions.push({at, pos});
+      if (m[2]) positions.push({at: at + 0.5, pos});
+      scan = scan.slice(0, at) + ' '.repeat(m[0].length - m[1].length) + scan.slice(at + m[0].length - m[1].length);
+    }
+  });
+  positions.sort((a, b) => a.at - b.at);
+  const posList = positions.map(p => p.pos);
+  return {team: teams.find(t => t.id !== me.id) || null, players, ambiguous, pos: posList[0] || null, positions: posList, rest};
 }
 
 /** Both sides of a trade, scored the way the analyzer scores it. */
@@ -2641,9 +2685,10 @@ function scoreTrade(ctx, them, give, get, givePicks = [], getPicks = []) {
 
 /**
  * Trades for the user's team. target: a player to get; pos: a position to improve; partner: one team only;
- * send: a player of yours to build the trade around; winBig: as much for you as they might still accept.
+ * send: a player of yours to build the trade around; want: two positions to get back together ("a WR and an RB");
+ * winBig: as much for you as they might still accept.
  */
-function findTrades(ctx, {target, pos, partner, send, winBig}) {
+function findTrades(ctx, {target, pos, partner, send, want, winBig}) {
   const {L, A, me} = ctx;
   let teams = L.teams.filter(t => t.id !== me.id);
   if (target) teams = teams.filter(t => t.players.includes(target));
@@ -2655,26 +2700,46 @@ function findTrades(ctx, {target, pos, partner, send, winBig}) {
   const myPicks = picksOn(ctx) ? draftPicks(L)[me.id].slice().sort((a, b) => pickValue(b, tiers) - pickValue(a, tiers)).slice(0, 5) : [];
   // What you could send: one player, two players, or (dynasty) a player plus a pick.
   let packages;
-  if (send) packages = [{give: [send], picks: []}];
-  else {
+  if (send && want) {
+    // Two players back usually takes a little more than one: your player alone, or with one more of yours.
+    packages = [{give: [send], picks: []}].concat(mine.filter(p => p !== send).slice(0, 8).map(p => ({give: [send, p], picks: []})));
+  } else if (send) packages = [{give: [send], picks: []}];
+  else if (want) {
+    const spare = mine.filter(p => !want.some(at => plays(p, at)));
+    packages = spare.slice(0, 8).map(a => ({give: [a], picks: []}));
+    for (let i = 0; i < 6 && i < spare.length; i++) for (let j = i + 1; j < 6 && j < spare.length; j++) packages.push({give: [spare[i], spare[j]], picks: []});
+  } else {
     packages = mine.map(a => ({give: [a], picks: []}));
     for (let i = 0; i < 8 && i < mine.length; i++) for (let j = i + 1; j < 8 && j < mine.length; j++) packages.push({give: [mine[i], mine[j]], picks: []});
     mine.slice(0, 8).forEach(a => myPicks.forEach(p => packages.push({give: [a], picks: [p]})));
   }
   const out = [];
   teams.forEach(t => {
-    const incoming = target ? [target] : byValue(t.players).filter(p => !pos || plays(p, pos)).slice(0, pos ? 3 : 6);
-    incoming.forEach(b => packages.forEach(pk => {
-      if (pos && !send && pk.give.some(g => plays(g, pos))) return;   // don't fix a position by giving one up
-      const r = scoreTrade(ctx, t, pk.give, [b], pk.picks, []);
-      const accept = r.theirGain >= 0 && (r.valueEdge === null || r.valueEdge <= 0.1 * dynastyValue(b)) ? 'likely'
+    let incoming;
+    if (want) {
+      // Every pair of their players that covers both positions, from their best few at each.
+      const at = want.map(w => byValue(t.players).filter(p => plays(p, w)).slice(0, 4));
+      incoming = [];
+      at[0].forEach(a => at[1].forEach(b => { if (a !== b && !incoming.some(([x, y]) => x === b && y === a)) incoming.push([a, b]); }));
+    } else incoming = (target ? [target] : byValue(t.players).filter(p => !pos || plays(p, pos)).slice(0, pos ? 3 : 6)).map(b => [b]);
+    incoming.forEach(get => packages.forEach(pk => {
+      if (pos && !send && !want && pk.give.some(g => plays(g, pos))) return;   // don't fix a position by giving one up
+      const r = scoreTrade(ctx, t, pk.give, get, pk.picks, []);
+      const getValue = get.reduce((s, p) => s + dynastyValue(p), 0);
+      const accept = r.theirGain >= 0 && (r.valueEdge === null || r.valueEdge <= 0.1 * getValue) ? 'likely'
         : r.theirGain >= -1.5 || (r.valueEdge !== null && r.valueEdge <= 0) ? 'maybe' : 'unlikely';
-      out.push({team: t, give: pk.give, givePicks: pk.picks, get: [b], getPicks: [], ...r, accept,
+      out.push({team: t, give: pk.give, givePicks: pk.picks, get, getPicks: [], ...r, accept,
         score: winBig ? r.myGain - 0.5 * r.theirGain + (r.valueEdge || 0) / 2000 : r.myGain + 0.5 * r.theirGain});
     }));
   });
   const ok = out.filter(x => (target || send || x.myGain > 0.3) && (winBig ? x.accept !== 'unlikely' : x.accept === 'likely'));
-  const pool = (ok.length ? ok : out).sort((a, b) => b.score - a.score);
+  let pool = (ok.length ? ok : out).sort((a, b) => b.score - a.score);
+  // Leave out options that cost you far more than the best one: they're the same idea, overpaid.
+  const bestGain = Math.max(...pool.map(x => x.myGain));
+  pool = pool.filter(x => x.myGain >= bestGain - 4);
+  // Around one of your players: lead with the best deal for him alone, if there is one.
+  const alone = send && pool.find(x => x.give.length === 1);
+  if (alone) pool = [alone].concat(pool.filter(x => x !== alone));
   const seen = new Set();
   const top = pool.filter(x => {
     // One version of each deal: the same players with a different pick thrown in isn't a new idea.
@@ -2690,7 +2755,21 @@ const recordOf = s => `${s.w}-${s.l}${s.t ? '-' + s.t : ''}`;
 /** The assistant's reply to one message: [{kind: 'bot', text} | {kind: 'trade', trade}]. */
 function assistantReply(ctx, text) {
   const {L, A, me, profiles, ranks} = ctx;
-  const {team, players, pos, rest: low} = mentions(L, me, text);
+  const {team, players, ambiguous, pos, positions, rest: low} = mentions(L, me, text);
+  const sellWords = /\b(sell|trade|move|shop|get for|deal|offer)\b/;
+  const ownerName = x => (x.team ? (x.team.id === me.id ? 'yours' : x.team.name) : 'free agent');
+  // A short name several players share: pick the obvious one, or ask.
+  if (ambiguous && !players.length) {
+    const mineOnly = ambiguous.options.filter(x => x.team && x.team.id === me.id);
+    const theirsOnly = ambiguous.options.filter(x => x.team && x.team.id !== me.id);
+    if (sellWords.test(low) && /get for|sell|shop|move/.test(low) && mineOnly.length === 1) players.push(mineOnly[0]);
+    else if (mineOnly.length === 0 && theirsOnly.length === 1) players.push(theirsOnly[0]);
+    else return [{kind: 'bot', text: `Which ${ambiguous.initials ? ambiguous.nick.toUpperCase() : ambiguous.nick[0].toUpperCase() + ambiguous.nick.slice(1)} do you mean? ${ambiguous.options.slice(0, 6).map(x => `**${x.pl.name}** (${ownerName(x)})`).join(', ')}. Ask again with the full name.`}];
+  }
+  // Two positions wanted back ("I want a WR and an RB"); a third or more would be too many for one trade.
+  const want = positions.length >= 2 ? positions.slice(0, 2) : null;
+  const aPos = p => (/^[AEIOFHLMNRSX]/.test(posLabel(p)) ? 'an ' : 'a ') + posLabel(p);
+  const wantText = want ? ` for ${want[0] === want[1] ? `two ${posLabel(want[0])}s` : want.map(aPos).join(' and ')}` : pos ? ` for ${aPos(pos)}` : '';
   const theirs = players.find(x => x.team && x.team.id !== me.id);
   const mineNamed = players.find(x => x.team && x.team.id === me.id);
   const n = L.teams.length;
@@ -2707,9 +2786,13 @@ function assistantReply(ctx, text) {
   if (/\b(help|what can you|how do i use|examples?)\b/.test(low)) return [say(ASSISTANT_HELP)];
 
   // Selling one of your players
-  if (mineNamed && /\b(sell|trade|move|shop|get for|deal|offer)\b/.test(low)) {
-    const res = findTrades(ctx, {send: mineNamed.pl, partner: team, winBig: /fleece|steal|rob|rip|lopsided|win big/.test(low)});
-    return tradeList(`The best returns for **${mineNamed.pl.name}**:`, res);
+  if (mineNamed && sellWords.test(low)) {
+    const res = findTrades(ctx, {send: mineNamed.pl, partner: team, pos: want ? null : pos, want, winBig: /fleece|steal|rob|rip|lopsided|win big/.test(low)});
+    return tradeList(`The best returns for **${mineNamed.pl.name}**${wantText}:`, res);
+  }
+  const askedFor = !players.length && low.match(/(?:get for|sell|trade away|shop)\s+([a-z][a-z .'-]{1,30}?)\s*(?:[,?.!]|$|\s(?:i|and|to|for)\s)/);
+  if (askedFor && !/^(my|a|an|the|someone|anyone|players?)\b/.test(askedFor[1])) {
+    return [say(`I couldn't find a player called "${askedFor[1].trim()}" in this league. Try his full name or last name.`)];
   }
   if (/\b(sell|sell high|trade away|get rid|shop|expendable|surplus|depth)\b/.test(low)) {
     const sellable = me.players.map(p => ({p, loss: profiles[me.id].total - profile(L, me.players.filter(x => x !== p)).total}))
@@ -2727,6 +2810,9 @@ function assistantReply(ctx, text) {
   const wantsTrade = winBig || /\b(trade|get|acquire|target|upgrade|improve|better|need|buy|deal|offer|land|grab|want)\b/.test(low);
   if (wantsTrade && theirs) {
     return tradeList(`Ways to get **${theirs.pl.name}** from ${theirs.team.name}${winBig ? ', getting as much as you can' : ''}:`, findTrades(ctx, {target: theirs.pl, winBig}));
+  }
+  if (wantsTrade && want && !/pick ?up|waiver|free agent/.test(low)) {
+    return tradeList(`The best trades that bring back ${wantText.slice(5)}${team ? ` from ${team.name}` : ''}:`, findTrades(ctx, {want, partner: team, winBig}));
   }
   if (wantsTrade && (pos || /\b(upgrade|improve|better|weak|need)\b/.test(low)) && !/pick ?up|waiver|free agent/.test(low)) {
     const at = pos || buckets.filter(b => b !== 'FLEX').sort((a, b) => ranks[me.id][b] - ranks[me.id][a])[0];
@@ -2801,7 +2887,7 @@ function assistantReply(ctx, text) {
 const ASSISTANT_HELP = `I can help with:
 - Trades for a player: "how can I get [player]?" or "fleece [team] for [player]"
 - Upgrading a position: "improve my ${NBA ? 'C' : 'QB'}" or "get a better ${NBA ? 'PG' : 'RB'} from [team]"
-- Selling: "who should I sell?" or "what can I get for [player]?"
+- Selling: "who should I sell?", "what can I get for [player]?" or "what can I get for [player]? I want a ${NBA ? 'PG and a C' : 'WR and an RB'}"
 - Your team, another team or a player: "how is my team?", "tell me about [team]", "[player name]"
 - The league: "who's the best team?"
 - This week: ${NBA ? '"who do I play?"' : '"who should I start?" or "who do I play?"'}, and "who should I pick up?"`;
