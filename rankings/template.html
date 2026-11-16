@@ -2814,7 +2814,22 @@ function findTrades(ctx, {target, pos, partner, send, want, winBig}) {
     });
   }
 
-  const out = deals.map(([t, give, picks, get]) => {
+  // Nobody trades away the better player on both ends of a deal, so the other side has to come out ahead somewhere:
+  // in a two-for-two, on at least one of the pairs (matched by position); when one player goes for two, the one is
+  // the best player in it.
+  const better = (a, b) => rosValue(a) - rosValue(b) >= Math.max(1, 0.05 * rosValue(b));   // clearly better, not a coin flip
+  const realistic = (give, get) => {
+    if (give.length === 1 && get.length === 2) return get.every(p => better(give[0], p));
+    if (give.length === 2 && get.length === 1) return give.every(p => better(get[0], p));
+    if (give.length !== 2 || get.length !== 2) return true;
+    const pairings = [[[give[0], get[0]], [give[1], get[1]]], [[give[0], get[1]], [give[1], get[0]]]];
+    // Like for like where the positions allow it, otherwise best with best.
+    const samePos = pr => pr.filter(([a, b]) => a.pos === b.pos).length;
+    const inOrder = pr => (rosValue(pr[0][0]) - rosValue(pr[1][0])) * (rosValue(pr[0][1]) - rosValue(pr[1][1])) >= 0;
+    const pairs = pairings.sort((x, y) => samePos(y) - samePos(x) || inOrder(y) - inOrder(x))[0];
+    return pairs.some(([sent, got]) => better(sent, got));
+  };
+  const out = deals.filter(([, give, , get]) => realistic(give, get)).map(([t, give, picks, get]) => {
     const r = scoreTrade(ctx, t, give, get, picks, []);
     const sentValue = give.reduce((s, p) => s + dynastyValue(p), 0) + picks.reduce((s, p) => s + pickValue(p, tiers), 0);
     // Would they take it? Mostly how the deal looks to them (what they get against what they give), and a bit
@@ -2832,12 +2847,12 @@ function findTrades(ctx, {target, pos, partner, send, want, winBig}) {
   const starts = (x, p) => bestLineup(L, {players: x.roster}, null, false, rosValue).picks.some(s => s && s.pl === p);
   const improves = x => !pos || send || (x.byPos[pos] || 0) > 0.1
     || (flexHas(pos) && (x.byPos.FLEX || 0) > 0.1 && x.get.some(p => plays(p, pos) && starts(x, p)));
-  const better = out.filter(x => x.myGain > 0.1 && improves(x) && (x.valueEdge === null || x.valueEdge >= -0.1 * x.sentValue) && x.accept !== 'unlikely');
+  const helps = out.filter(x => x.myGain > 0.1 && improves(x) && (x.valueEdge === null || x.valueEdge >= -0.1 * x.sentValue) && x.accept !== 'unlikely');
   // Fair asks lead with deals they should accept; either way, sending him alone beats adding a player.
-  better.forEach(x => { if (send && x.give.length > 1) x.score -= 0.5; });
-  better.sort((a, b) => (winBig ? 0 : (b.accept === 'likely') - (a.accept === 'likely')) || b.score - a.score);
+  helps.forEach(x => { if (send && x.give.length > 1) x.score -= 0.5; });
+  helps.sort((a, b) => (winBig ? 0 : (b.accept === 'likely') - (a.accept === 'likely')) || b.score - a.score);
   const seen = new Set();
-  return better.filter(x => {
+  return helps.filter(x => {
     // One version of each deal: the same players with a different pick thrown in isn't a new idea.
     const k = x.team.id + '|' + x.give.map(plKey).join() + '|' + x.get.map(plKey).join();
     if (seen.has(k)) return false; seen.add(k); return true;
@@ -2954,10 +2969,15 @@ function assistantReply(ctx, text, memory = {}) {
   if (wantsTrade && want && !/pick ?up|waiver|free agent/.test(low)) {
     return tradeList(`The best trades that bring back ${wantText.slice(5)}${team ? ` from ${team.name}` : ''}:`, {want, partner: team, winBig});
   }
-  if (wantsTrade && (pos || /\b(upgrade|improve|better|weak|need)\b/.test(low)) && !/pick ?up|waiver|free agent/.test(low)) {
-    const at = pos || buckets.filter(b => b !== 'FLEX').sort((a, b) => ranks[me.id][b] - ranks[me.id][a])[0];
+  // A position to improve, or just "trade ideas": then your weakest position that trades actually move.
+  if (wantsTrade && (pos || /\b(upgrade|improve|better|weak|need|suggest\w*|ideas?|trades?)\b/.test(low)) && !/pick ?up|waiver|free agent/.test(low)) {
+    const movable = NBA ? buckets.filter(b => b !== 'FLEX') : ['RB', 'WR', 'QB'].filter(b => buckets.includes(b));
+    const at = pos || movable.sort((a, b) => ranks[me.id][b] - ranks[me.id][a])[0];
     const rank = ranks[me.id][at] || n;
-    const intro = `Your ${posLabel(at)} is ${ordinal(rank)} of ${n}${pos ? '' : ', your weakest spot'}${rank <= 3 ? ', so upgrades there are small' : ''}. ${team ? `Upgrades from ${team.name}` : 'The best upgrades'}${winBig ? ', getting as much as you can' : ''}:`;
+    const where = pos ? `Your ${posLabel(at)} is ${ordinal(rank)} of ${n}${rank <= 3 ? ', so upgrades there are small' : ''}.`
+      : rank <= 3 ? `Your team is strong everywhere; ${posLabel(at)} (${ordinal(rank)} of ${n}) has the most room.`
+      : `Your weakest spot is ${posLabel(at)}, ${ordinal(rank)} of ${n}.`;
+    const intro = `${where} ${team ? `Upgrades from ${team.name}` : 'The best upgrades'}${winBig ? ', getting as much as you can' : ''}:`;
     return tradeList(intro, {pos: at, partner: team, winBig});
   }
   if (wantsTrade && team) return tradeList(`The best trades with ${team.name}${winBig ? ', getting as much as you can' : ''}:`, {partner: team, winBig});
