@@ -1896,16 +1896,26 @@ function positionRanks(L, profiles) {
 
 const plKey = pl => pl.sid || pl.name;
 
-/** Roster after a trade, dropping the lowest-value players if it ends up over the original size. */
+/**
+ * Roster after a trade, dropping players if it ends up over the original size: the least valuable bench players,
+ * never a starter (a kicker or D/ST scores little but is the only one who can fill his slot).
+ */
 function afterTrade(players, give, get) {
   const giveKeys = new Set(give.map(plKey));
   let out = players.filter(p => !giveKeys.has(plKey(p))).concat(get);
   const dropped = [];
   if (out.length > players.length) {
     const keep = new Set(get.map(plKey));
-    const droppable = out.filter(p => !keep.has(plKey(p))).sort((a, b) => rosValue(a) - rosValue(b));
+    const starters = new Set(bestLineup(LG, {players: out}, null, false, rosValue).picks.filter(Boolean).map(s => s.pl));
+    const droppable = out.filter(p => !keep.has(plKey(p)))
+      .sort((a, b) => starters.has(a) - starters.has(b) || rosValue(a) - rosValue(b));
     while (out.length > players.length && droppable.length) {
-      const d = droppable.shift();
+      // Of the few weakest bench players, the one the lineup misses least (a bye-week fill-in can matter more).
+      const options = droppable.filter(p => !starters.has(p)).slice(0, 3);
+      const d = options.length > 1
+        ? options.map(p => ({p, total: profile(LG, out.filter(x => x !== p)).total})).sort((a, b) => b.total - a.total)[0].p
+        : droppable[0];
+      droppable.splice(droppable.indexOf(d), 1);
       dropped.push(d);
       out = out.filter(p => p !== d);
     }
