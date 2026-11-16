@@ -2697,27 +2697,31 @@ function scoreTrade(ctx, them, give, get, givePicks = [], getPicks = []) {
 }
 
 /**
- * How the rest of the league sees players, for judging what a manager would accept. Stars are worth more than
- * their points (people overpay for them), backups at deep positions next to nothing, so a pile of depth won't buy
- * a star but two good starters might. Dynasty leagues use the market's trade values, which are curved the same way.
+ * How the rest of the league sees players, for judging what a manager would accept: by where the consensus
+ * rest-of-season rankings put them, because that's what managers look at. Value falls off steeply with rank, so
+ * stars are worth more than their points (people overpay for them) and backups next to nothing as sweeteners.
+ * RB5 and WR5 count the same; one-QB leagues and tight ends are discounted. Dynasty leagues use the market's
+ * trade values, which are curved the same way.
  */
 function tradeMarket(ctx) {
   const {L} = ctx;
-  const n = L.teams.length;
   const rostered = L.teams.flatMap(t => t.players);
   const byPos = {};
   rostered.forEach(p => (byPos[p.pos] = byPos[p.pos] || []).push(p));
   Object.values(byPos).forEach(list => list.sort((a, b) => rosValue(b) - rosValue(a)));
-  // Replacement level: about the last starter at each position across the league.
-  const flex = L.slots.filter(s => (SLOT_ELIG[s] || []).length > 1);
-  const startersAt = pos => L.slots.filter(s => (SLOT_ELIG[s] || []).length === 1 && SLOT_ELIG[s][0] === pos).length
-    + flex.filter(s => SLOT_ELIG[s].includes(pos)).length * (pos === 'TE' ? 0.1 : pos === 'QB' ? 1 : 0.45);
-  const repl = {};
-  Object.entries(byPos).forEach(([pos, list]) => { const at = list[Math.min(list.length - 1, Math.round(n * startersAt(pos)))]; repl[pos] = at ? rosValue(at) : 0; });
+  const rank = {};
+  Object.entries((D.types.ros || {}).rankings || {}).forEach(([at, rows]) => {
+    if (NBA ? at !== 'ALL' : !ALL_POS.includes(at)) return;
+    rows.forEach(r => { if (r.sid && !(r.sid in rank)) rank[r.sid] = r.rank; });
+  });
+  const unranked = NBA ? 250 : 80;
+  const rankOf = pl => rank[pl.sid] || unranked;
+  // Rank at which each position is worth as much as a WR/RB at that rank (QB12 is about a WR30 in one-QB leagues).
+  const scale = NBA ? {} : {QB: 2.5, TE: 1.6, K: 20, DEF: 20};
   const perceived = pl => (picksOn(ctx) ? dynastyValue(pl)
-    : NBA ? rosValue(pl) ** 1.5 : Math.max(0, rosValue(pl) - (repl[pl.pos] || 0)) ** 1.5);
+    : 100 * Math.exp(-(rankOf(pl) * (scale[pl.pos] || 1) - 1) / (NBA ? 30 : 10)));
   return {
-    perceived,
+    perceived, rankOf,
     eliteQB: new Set((byPos.QB || []).slice(0, 3)),   // the only QBs that move the needle in a trade
   };
 }
@@ -2817,8 +2821,11 @@ function findTrades(ctx, {target, pos, partner, send, want, winBig}) {
   // Nobody trades away the better player on both ends of a deal, so the other side has to come out ahead somewhere:
   // in a two-for-two, on at least one of the pairs (matched by position); when one player goes for two, the one is
   // the best player in it.
-  const better = (a, b) => rosValue(a) - rosValue(b) >= Math.max(1, 0.05 * rosValue(b));   // clearly better, not a coin flip
+  const better = (a, b) => market.perceived(a) >= 1.1 * market.perceived(b) && rosValue(a) > rosValue(b);   // clearly better, not a coin flip
   const realistic = (give, get) => {
+    // Straight up at one position: they won't hand over someone ranked clearly higher than what they get.
+    if (give.length === 1 && get.length === 1 && (NBA || give[0].pos === get[0].pos)
+      && market.rankOf(get[0]) < market.rankOf(give[0]) - 2) return false;
     if (give.length === 1 && get.length === 2) return get.every(p => better(give[0], p));
     if (give.length === 2 && get.length === 1) return give.every(p => better(get[0], p));
     if (give.length !== 2 || get.length !== 2) return true;
@@ -2836,7 +2843,7 @@ function findTrades(ctx, {target, pos, partner, send, want, winBig}) {
     // whether it helps their lineup. People like to make trades happen, so only a clearly bad look is a no.
     const look = (give.reduce((s, p) => s + market.perceived(p), 0) + picks.reduce((s, p) => s + pickValue(p, tiers), 0))
       / Math.max(1e-6, get.reduce((s, p) => s + market.perceived(p), 0));
-    const accept = look >= 1 || (r.theirGain >= 0 && look >= 0.85) ? 'likely' : look >= 0.6 || r.theirGain >= -2 ? 'maybe' : 'unlikely';
+    const accept = look >= 1 || (r.theirGain >= 0 && look >= 0.85) ? 'likely' : look >= 0.7 ? 'maybe' : 'unlikely';
     return {team: t, give, givePicks: picks, get, getPicks: [], ...r, accept, sentValue,
       score: winBig ? r.myGain - 0.5 * r.theirGain + (r.valueEdge || 0) / 2000 : r.myGain + 0.5 * r.theirGain};
   });
