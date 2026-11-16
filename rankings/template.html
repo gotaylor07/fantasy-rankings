@@ -144,6 +144,7 @@ td.good b,td.bad b{color:inherit}
 .leaguebar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
 .leaguebar select{flex:1;min-width:200px}
 .chg td{background:var(--chg)}
+.lineups-ba{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
 .new-tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:var(--accent);color:var(--accent-text);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle}
 .stats{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
 .stat{background:var(--card-2);border:1px solid var(--line);border-radius:12px;padding:9px 13px;min-width:96px}
@@ -170,7 +171,7 @@ dialog::backdrop{background:var(--backdrop);backdrop-filter:blur(3px)}
 .injury b{font-weight:700}
 .dlg-body .tabs{margin-top:16px}
 .close{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;width:34px;height:34px;font-size:18px;cursor:pointer;flex:none}
-.trade-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.trade-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
 .checklist{border:1px solid var(--line);border-radius:var(--radius);background:var(--card);margin:0;padding:8px 10px 10px;max-height:380px;overflow:auto;min-width:0;box-shadow:var(--shadow)}
 .checklist legend{font-weight:700;padding:0 4px}
 .check{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid var(--line);cursor:pointer;font-size:14px}
@@ -444,7 +445,7 @@ td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
 .gv-play{flex-wrap:wrap}
 .gv-play.score .gv-score{display:block;flex-basis:100%;padding-left:36px}
 }
-@media (max-width:640px){.gv-big-score{font-size:26px}.gv-big-logo{width:32px;height:32px}.gv-team-name{font-size:14px}.d-offer{grid-template-columns:repeat(2,minmax(0,1fr))}.g-stage{grid-template-columns:1fr}.g-left{position:static}.g-card.big .pl-photo{width:110px;height:110px}.mu-score{gap:8px;padding:12px}.mu-name{font-size:14px;flex-wrap:wrap;gap:4px}.mu-side .desc{font-size:11px}.mu-pts{font-size:26px}.mu-win{font-size:13px}.mu-vs{font-size:12px}.hero{flex-wrap:wrap}.sport{margin-left:0}.connect,.trade-grid{grid-template-columns:1fr}th,td{padding:8px 9px}.pl-photo{width:76px;height:76px}.dlg-head{flex-wrap:wrap}.nav{display:flex;width:100%;overflow-x:auto;scrollbar-width:none}.nav::-webkit-scrollbar{display:none}.nav button{flex:1 0 auto;padding:8px 10px;font-size:13px;white-space:nowrap}.nav-full{display:none}.nav-short{display:inline}h1{font-size:20px}}
+@media (max-width:640px){.gv-big-score{font-size:26px}.gv-big-logo{width:32px;height:32px}.gv-team-name{font-size:14px}.d-offer{grid-template-columns:repeat(2,minmax(0,1fr))}.g-stage{grid-template-columns:1fr}.g-left{position:static}.g-card.big .pl-photo{width:110px;height:110px}.mu-score{gap:8px;padding:12px}.mu-name{font-size:14px;flex-wrap:wrap;gap:4px}.mu-side .desc{font-size:11px}.mu-pts{font-size:26px}.mu-win{font-size:13px}.mu-vs{font-size:12px}.hero{flex-wrap:wrap}.sport{margin-left:0}.connect,.trade-grid{grid-template-columns:minmax(0,1fr)}th,td{padding:8px 9px}.pl-photo{width:76px;height:76px}.dlg-head{flex-wrap:wrap}.nav{display:flex;width:100%;overflow-x:auto;scrollbar-width:none}.nav::-webkit-scrollbar{display:none}.nav button{flex:1 0 auto;padding:8px 10px;font-size:13px;white-space:nowrap}.nav-full{display:none}.nav-short{display:inline}h1{font-size:20px}}
 </style>
 </head>
 <body>
@@ -2572,39 +2573,46 @@ function renderAnalyzer(ctx, box) {
     [me, them].forEach(team => { const c = el('div'); c.appendChild(el('h3', '', team.id === me.id ? 'Your position strengths' : `${team.name} position strengths`)); c.appendChild(posTable(team)); two.appendChild(c); });
     result.appendChild(two);
 
-    // Starting lineups after the trade: each team's usual best lineup (by rest-of-season projection).
-    // Highlighted: players who weren't starting before; underneath, who drops out.
+    // Starting lineups before and after the trade: each team's usual best lineup (by rest-of-season projection).
+    // Before and after for every slot, changes highlighted; underneath, who drops out.
     const lineupBlock = (team, before, after, incoming) => {
       const starters = players => bestLineup(L, {players}, null, false, rosValue).picks;
       const was = starters(before), now = starters(after);
-      const wasKeys = new Set(was.filter(Boolean).map(s => plKey(s.pl)));
       const nowKeys = new Set(now.filter(Boolean).map(s => plKey(s.pl)));
       const arriving = new Set(incoming.map(plKey));
-      let total = 0;
+      let totalWas = 0, totalNow = 0;
+      const starterCell = (s, isNew) => {
+        const cell = td('', 'l');
+        if (s) { cell.appendChild(nameTag(s.pl)); if (isNew) cell.appendChild(el('span', 'new-tag', 'new')); }
+        else cell.textContent = 'Empty';
+        return cell;
+      };
       const rows = L.slots.map((slot, i) => {
         if (!SLOT_ELIG[slot]) return null;
-        const a = now[i];
-        if (a) total += a.pts;
-        const tr = el('tr', a && !wasKeys.has(plKey(a.pl)) ? 'chg' : '');
+        const a = now[i], b = was[i];
+        if (a) totalNow += a.pts;
+        if (b) totalWas += b.pts;
+        const tr = el('tr', (a ? plKey(a.pl) : '') !== (b ? plKey(b.pl) : '') ? 'chg' : '');
         tr.appendChild(td(SLOT_LABEL[slot] || slot, 'l muted'));
-        const cell = td('', 'l');
-        if (a) { cell.appendChild(nameTag(a.pl)); if (arriving.has(plKey(a.pl))) cell.appendChild(el('span', 'new-tag', 'new')); }
-        else cell.textContent = 'Empty';
-        tr.appendChild(cell);
+        tr.appendChild(starterCell(b, false));
+        tr.appendChild(td(b ? fmt(b.pts) : '–', 'muted'));
+        tr.appendChild(starterCell(a, a && arriving.has(plKey(a.pl))));
         tr.appendChild(td(a ? fmt(a.pts) : '–', 'avg'));
         return tr;
       }).filter(Boolean);
       const f = el('tr');
-      f.appendChild(td('Total', 'l')); f.appendChild(td('')); f.appendChild(td(fmt(total)));
+      f.appendChild(td('Total', 'l')); f.appendChild(td('')); f.appendChild(td(fmt(totalWas)));
+      f.appendChild(td(signed(totalNow - totalWas), totalNow - totalWas > 0.05 ? 'good' : totalNow - totalWas < -0.05 ? 'bad' : 'muted'));
+      f.appendChild(td(fmt(totalNow)));
       const box = el('div');
-      box.appendChild(table([['Slot', 'l'], ['Starter', 'l'], 'Pts/wk'], rows, f));
+      box.appendChild(table([['Slot', 'l'], ['Before', 'l'], 'Pts/wk', ['After', 'l'], 'Pts/wk'], rows, f));
       const out = was.filter(s => s && !nowKeys.has(plKey(s.pl))).map(s => s.pl.name);
       box.appendChild(el('p', 'note', out.length ? `Out of the lineup: ${out.join(', ')}.` : 'Nobody drops out of the lineup.'));
       return box;
     };
-    result.appendChild(el('h3', '', 'Starting lineups after the trade'));
-    result.appendChild(el('p', 'note', `Each team's best lineup ${NBA ? 'on a typical day' : 'in a typical week'}, by projected points per week ${HORIZON}. Highlighted players weren't starting before; "new" marks players arriving in the trade.`));
-    const lineups = el('div', 'trade-grid');
+    result.appendChild(el('h3', '', 'Starting lineups before and after the trade'));
+    result.appendChild(el('p', 'note', `Each team's best lineup ${NBA ? 'on a typical day' : 'in a typical week'}, by projected points per week ${HORIZON}. Highlighted rows change; "new" marks players arriving in the trade.`));
+    const lineups = el('div', 'lineups-ba');
     [[me, me.players, mineAfter.players, get], [them, them.players, theirsAfter.players, give]].forEach(([team, before, after, incoming]) => {
       const c = el('div');
       c.appendChild(el('h3', '', team.id === me.id ? 'Your lineup' : `${team.name} lineup`));
