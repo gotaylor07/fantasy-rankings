@@ -144,6 +144,7 @@ td.good b,td.bad b{color:inherit}
 .leaguebar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
 .leaguebar select{flex:1;min-width:200px}
 .chg td{background:var(--chg)}
+.new-tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:var(--accent);color:var(--accent-text);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle}
 .stats{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
 .stat{background:var(--card-2);border:1px solid var(--line);border-radius:12px;padding:9px 13px;min-width:96px}
 .stat b{display:block;font-size:19px;letter-spacing:-.01em}
@@ -2570,6 +2571,47 @@ function renderAnalyzer(ctx, box) {
     const two = el('div', 'trade-grid');
     [me, them].forEach(team => { const c = el('div'); c.appendChild(el('h3', '', team.id === me.id ? 'Your position strengths' : `${team.name} position strengths`)); c.appendChild(posTable(team)); two.appendChild(c); });
     result.appendChild(two);
+
+    // Starting lineups after the trade: each team's usual best lineup (by rest-of-season projection).
+    // Highlighted: players who weren't starting before; underneath, who drops out.
+    const lineupBlock = (team, before, after, incoming) => {
+      const starters = players => bestLineup(L, {players}, null, false, rosValue).picks;
+      const was = starters(before), now = starters(after);
+      const wasKeys = new Set(was.filter(Boolean).map(s => plKey(s.pl)));
+      const nowKeys = new Set(now.filter(Boolean).map(s => plKey(s.pl)));
+      const arriving = new Set(incoming.map(plKey));
+      let total = 0;
+      const rows = L.slots.map((slot, i) => {
+        if (!SLOT_ELIG[slot]) return null;
+        const a = now[i];
+        if (a) total += a.pts;
+        const tr = el('tr', a && !wasKeys.has(plKey(a.pl)) ? 'chg' : '');
+        tr.appendChild(td(SLOT_LABEL[slot] || slot, 'l muted'));
+        const cell = td('', 'l');
+        if (a) { cell.appendChild(nameTag(a.pl)); if (arriving.has(plKey(a.pl))) cell.appendChild(el('span', 'new-tag', 'new')); }
+        else cell.textContent = 'Empty';
+        tr.appendChild(cell);
+        tr.appendChild(td(a ? fmt(a.pts) : '–', 'avg'));
+        return tr;
+      }).filter(Boolean);
+      const f = el('tr');
+      f.appendChild(td('Total', 'l')); f.appendChild(td('')); f.appendChild(td(fmt(total)));
+      const box = el('div');
+      box.appendChild(table([['Slot', 'l'], ['Starter', 'l'], 'Pts/wk'], rows, f));
+      const out = was.filter(s => s && !nowKeys.has(plKey(s.pl))).map(s => s.pl.name);
+      box.appendChild(el('p', 'note', out.length ? `Out of the lineup: ${out.join(', ')}.` : 'Nobody drops out of the lineup.'));
+      return box;
+    };
+    result.appendChild(el('h3', '', 'Starting lineups after the trade'));
+    result.appendChild(el('p', 'note', `Each team's best lineup ${NBA ? 'on a typical day' : 'in a typical week'}, by projected points per week ${HORIZON}. Highlighted players weren't starting before; "new" marks players arriving in the trade.`));
+    const lineups = el('div', 'trade-grid');
+    [[me, me.players, mineAfter.players, get], [them, them.players, theirsAfter.players, give]].forEach(([team, before, after, incoming]) => {
+      const c = el('div');
+      c.appendChild(el('h3', '', team.id === me.id ? 'Your lineup' : `${team.name} lineup`));
+      c.appendChild(lineupBlock(team, before, after, incoming));
+      lineups.appendChild(c);
+    });
+    result.appendChild(lineups);
 
     // Power rankings before/after (same simulation seed, so differences come from the trade, not luck)
     const L2 = withRosters(L, {[me.id]: mineAfter.players, [them.id]: theirsAfter.players});
