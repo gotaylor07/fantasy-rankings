@@ -5,7 +5,7 @@ import json
 import sys
 from datetime import date, datetime
 
-from .. import leagues, picks, site, slate
+from .. import leagues, market, picks, site, slate
 from . import build as nb
 from . import demo
 
@@ -76,8 +76,17 @@ def run(args, today: date) -> int:
         except Exception as exc:
             print(f"  FAIL slate    ESPN {type(exc).__name__}: {exc}", file=sys.stderr)
     pd.pop("remaining", None)  # only needed for the boards; too big for the page
+    # Player values over time, for the Market tab: no trade market covers basketball, so the value
+    # comes from the consensus rest-of-season ranking.
+    ranked = [r["sid"] for r in (types["ros"].get("rankings") or {}).get("ALL", []) if r.get("sid")]
+    market_file = market.build(site_file, data_file.parent, today, args.demo, {"site": lambda: (market.rank_values(ranked), {})}, {
+        "site": "Site value, from the consensus rest-of-season rankings (no trade market covers basketball)"
+        + (" (made-up demo history)" if args.demo else ""),
+    })
+
     data = {
         "sport": "basketball",
+        "market_file": market_file,
         "slate": slate_data,
         "dynasty": picks.estimate([r["sid"] for r in (types["dynasty"].get("rankings") or {}).get("ALL", []) if r.get("sid")], season),
         "links": update.DEMO_LINKS if args.demo else update.LINKS,

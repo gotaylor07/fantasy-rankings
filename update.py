@@ -21,7 +21,7 @@ from zoneinfo import ZoneInfo
 # Apple's bundled Python links LibreSSL; urllib3 warns about it on every run but works.
 warnings.filterwarnings("ignore", message="urllib3 v2 only supports OpenSSL")
 
-from rankings import demo, depth, history, leagues, picks, players, site, slate
+from rankings import demo, depth, history, leagues, market, picks, players, site, slate
 from rankings.aggregate import aggregate, upcoming_week
 from rankings.sources import espn_injuries, espn_ownership, sleeper_players, source_registry
 
@@ -205,8 +205,20 @@ def run_football(args, today: date) -> int:
         except Exception as exc:
             print(f"  FAIL dynasty  values {type(exc).__name__}: {exc}", file=sys.stderr)
 
+    # Player values over time, for the Market tab.
+    if args.demo:
+        market_now = {"redraft": lambda: (dynasty_values["players"], {}), "dynasty": lambda: (dynasty_values["players"], {})}
+    else:
+        fc = {}
+        market_now = {kind: (lambda kind=kind: fc.setdefault("v", market.football_values(today))[kind]) for kind in ("redraft", "dynasty")}
+    market_file = market.build(site_file, data_file.parent, today, args.demo, market_now, {
+        "redraft": "Redraft trade value (FantasyCalc)" if not args.demo else "Redraft value (made-up demo history)",
+        "dynasty": "Dynasty trade value (FantasyCalc)" if not args.demo else "Dynasty value (made-up demo history)",
+    })
+
     data = {
         "sport": "football",
+        "market_file": market_file,
         "slate": slate_data,
         "depth": depth_data,
         "dynasty": dynasty_values,

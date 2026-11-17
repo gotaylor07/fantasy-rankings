@@ -418,6 +418,40 @@ tr.cur-week.live td{background:color-mix(in srgb,#ef4444 8%,var(--card))}
 .mu-grid td.l{white-space:normal}
 .mu-grid .ptag{flex-wrap:wrap;column-gap:5px;row-gap:2px}
 .mu-grid td.mu-game{font-size:12px;min-width:56px}
+/* Market tab */
+.mk-tools{align-items:flex-start}
+.mk-tools .tabs{margin-bottom:0}
+.mk-results{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 12px}
+.mk-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:16px;align-items:start}
+.mk-main,.mk-side{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;min-width:0}
+.mk-head{display:flex;gap:16px;align-items:center;margin-bottom:12px}
+.mk-photo{width:84px;height:84px}
+.mk-info{min-width:0}
+.mk-name{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:22px;font-weight:800}
+.mk-name .pos{font-size:13px;color:var(--muted);font-weight:600}
+.mk-price{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-top:4px}
+.mk-value{font-size:30px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.mk-chg{font-weight:700;font-variant-numeric:tabular-nums}
+.mk-chg.good,.mk-pct.good{color:var(--good)}.mk-chg.bad,.mk-pct.bad{color:var(--bad)}
+.mk-ranges{margin-bottom:6px}
+.mk-chart{position:relative;min-height:120px}
+.mk-chart svg{display:block;overflow:visible}
+.mk-grid-line{stroke:var(--line);stroke-width:1}
+.mk-axis{fill:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.mk-cross{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
+.mk-tag.up{fill:color-mix(in srgb,var(--good) 22%,var(--card))}.mk-tag.down{fill:color-mix(in srgb,var(--bad) 22%,var(--card))}
+.mk-tag-text{fill:var(--text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+.mk-tip{position:absolute;pointer-events:none;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px 10px;font-size:13px;width:140px;font-variant-numeric:tabular-nums}
+.mk-tip b{font-size:15px}
+.mk-table{margin-top:10px}.mk-table summary{cursor:pointer}
+.mk-side-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.mk-side-head h3{margin:0}.mk-side-head .tabs{margin:0}
+.mk-list{display:flex;flex-direction:column;max-height:560px;overflow:auto;margin:0 -6px}
+.mk-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 6px;border:0;border-bottom:1px solid var(--line);background:none;color:var(--text);font:inherit;text-align:left;cursor:pointer;border-radius:8px}
+.mk-row:hover{background:var(--hover)}.mk-row.on{background:var(--chg)}
+.mk-row .ptag{min-width:0}
+.mk-pct{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media (max-width:760px){.mk-grid{grid-template-columns:minmax(0,1fr)}.mk-photo{width:64px;height:64px}.mk-name{font-size:18px}.mk-value{font-size:24px}.mk-list{max-height:none}}
 .mu-bar{height:10px;border-radius:999px;background:color-mix(in srgb,var(--bad) 45%,var(--line));overflow:hidden;margin-bottom:16px}
 .mu-bar span{display:block;height:100%;background:var(--accent)}
 .badge.good-badge{color:var(--good);border-color:color-mix(in srgb,var(--good) 50%,transparent);background:color-mix(in srgb,var(--good) 9%,transparent)}
@@ -450,7 +484,7 @@ td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
 .gv-play{flex-wrap:wrap}
 .gv-play.score .gv-score{display:block;flex-basis:100%;padding-left:36px}
 }
-@media (max-width:640px){.gv-big-score{font-size:26px}.gv-big-logo{width:32px;height:32px}.gv-team-name{font-size:14px}.d-offer{grid-template-columns:repeat(2,minmax(0,1fr))}.g-stage{grid-template-columns:1fr}.g-left{position:static}.g-card.big .pl-photo{width:110px;height:110px}.mu-score{gap:8px;padding:12px}.mu-grid th,.mu-grid td{padding:6px 5px;font-size:13px}.mu-grid th{font-size:10px;letter-spacing:.03em}.mu-grid .face{width:22px;height:22px}.mu-grid .ptag .pos{display:none}.mu-name{font-size:14px;flex-wrap:wrap;gap:4px}.mu-side .desc{font-size:11px}.mu-pts{font-size:26px}.mu-win{font-size:13px}.mu-vs{font-size:12px}.hero{flex-wrap:wrap}.sport{margin-left:0}.connect,.trade-grid{grid-template-columns:minmax(0,1fr)}th,td{padding:8px 9px}.pl-photo{width:76px;height:76px}.dlg-head{flex-wrap:wrap}.nav{display:flex;width:100%;overflow-x:auto;scrollbar-width:none}.nav::-webkit-scrollbar{display:none}.nav button{flex:1 0 auto;padding:8px 10px;font-size:13px;white-space:nowrap}.nav-full{display:none}.nav-short{display:inline}h1{font-size:20px}}
+@media (max-width:640px){.gv-big-score{font-size:26px}.gv-big-logo{width:32px;height:32px}.gv-team-name{font-size:14px}.d-offer{grid-template-columns:repeat(2,minmax(0,1fr))}.g-stage{grid-template-columns:1fr}.g-left{position:static}.g-card.big .pl-photo{width:110px;height:110px}.mu-score{gap:8px;padding:12px}.mu-grid th,.mu-grid td{padding:6px 5px;font-size:13px}.mu-grid th{font-size:10px;letter-spacing:.03em}.mu-grid .face{width:22px;height:22px}.mu-grid .ptag .pos{display:none}.mu-name{font-size:14px;flex-wrap:wrap;gap:4px}.mu-side .desc{font-size:11px}.mu-pts{font-size:26px}.mu-win{font-size:13px}.mu-vs{font-size:12px}.hero{flex-wrap:wrap}.sport{margin-left:0}.connect,.trade-grid{grid-template-columns:minmax(0,1fr)}th,td{padding:8px 9px}.pl-photo{width:76px;height:76px}.dlg-head{flex-wrap:wrap}.nav{display:flex;width:100%;overflow-x:auto;scrollbar-width:none}.nav::-webkit-scrollbar{display:none}.nav button{flex:1 0 auto;padding:8px 7px;font-size:12.5px;white-space:nowrap}.nav-full{display:none}.nav-short{display:inline}h1{font-size:20px}}
 </style>
 </head>
 <body>
@@ -477,6 +511,7 @@ td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
     <button type="button" role="tab" id="nav-rankings" aria-controls="view-rankings"><span class="nav-full">Player rankings</span><span class="nav-short">Rankings</span></button>
     <button type="button" role="tab" id="nav-slate" aria-controls="view-slate"><span class="nav-full">Weekly slate</span><span class="nav-short">Slate</span></button>
     <button type="button" role="tab" id="nav-league" aria-controls="view-league">My league</button>
+    <button type="button" role="tab" id="nav-market" aria-controls="view-market">Market</button>
     <button type="button" role="tab" id="nav-games" aria-controls="view-games">Games</button>
   </div>
 
@@ -525,6 +560,10 @@ td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
       </div>
     </div>
     <div id="leagueBody"></div>
+  </section>
+
+  <section id="view-market" role="tabpanel" aria-labelledby="nav-market" hidden>
+    <div id="marketBody"></div>
   </section>
 
   <section id="view-games" role="tabpanel" aria-labelledby="nav-games" hidden>
@@ -925,6 +964,282 @@ function renderPlayerHead(sid, p) {
   head.appendChild(close);
 }
 
+// ---------------------------------------------------------------- market tab: player values over time
+
+// The value history lives in <page>.market.js, loaded the first time the tab opens.
+let marketState = window.MARKET ? 'ready' : 'idle';
+function loadMarket(onDone) {
+  if (marketState === 'ready' || marketState === 'missing') return onDone();
+  if (marketState === 'loading') { loadMarket.waiting.push(onDone); return; }
+  marketState = 'loading';
+  loadMarket.waiting = [onDone];
+  const s = document.createElement('script');
+  s.src = D.market_file || 'index.market.js';
+  const finish = ok => { marketState = ok && window.MARKET ? 'ready' : 'missing'; loadMarket.waiting.forEach(f => f()); };
+  s.onload = () => finish(true);
+  s.onerror = () => finish(false);
+  document.head.appendChild(s);
+}
+
+const MK_RANGES = [['1W', 7], ['1M', 30], ['3M', 91], ['ALL', Infinity]];
+const mk = {sub: 'team', kind: null, sel: null, range: '1M', q: '', dir: 'all'};
+
+/** A player's recorded values, oldest first: [{d, v}]. */
+function mkSeries(sid) {
+  const h = window.MARKET.history[mk.kind];
+  const vals = h && h.series[sid];
+  return vals ? h.dates.map((d, i) => ({d, v: vals[i]})).filter(p => p.v != null) : [];
+}
+
+const daysBetween = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5);
+
+/** Change over the past week (or, until a week has been recorded, over what there is). */
+function mkChange(pts, days = 7) {
+  if (pts.length < 2) return null;
+  const last = pts[pts.length - 1];
+  const cutoff = addDays(last.d, -days);
+  const base = pts.slice().reverse().find(p => p.d <= cutoff) || pts[0];
+  if (base === last || !base.v) return null;
+  return {pct: 100 * (last.v - base.v) / base.v, from: base, to: last, days: daysBetween(base.d, last.d)};
+}
+const pctText = c => (c ? `${c.pct > 0 ? '▲' : c.pct < 0 ? '▼' : ''} ${Math.abs(c.pct).toFixed(1)}%` : '–');
+const pctClass = c => (!c ? 'muted' : c.pct > 0 ? 'good' : c.pct < 0 ? 'bad' : 'muted');
+const spanText = c => (!c ? '' : c.days === 7 ? 'past week' : c.days < 7 ? `since ${shortDate(c.from.d)}` : `past ${c.days} days`);
+const mkPlayer = sid => (P[sid] ? {sid, name: P[sid].n, pos: P[sid].p, team: P[sid].t, el: P[sid].el} : null);
+
+/** Your roster in the league you last picked on My league, or null if no league is connected. */
+async function marketRoster() {
+  if (sleeperLeagues === null) await refreshSleeperLeagues();
+  const list = leagueList();
+  if (!list.length) return null;
+  const s = store.get();
+  const active = list.find(l => l.key === s.active) || list[0];
+  const L = await getLeague(active);
+  const saved = (s.myTeam || {})[active.key];
+  const me = L.teams.find(t => t.id === saved) || L.teams.find(t => t.id === L.myTeam) || L.teams[0];
+  return me ? {L, me} : null;
+}
+
+let marketToken = 0;
+async function renderMarket() {
+  const token = ++marketToken;
+  const box = document.getElementById('marketBody');
+  if (marketState !== 'ready') {
+    box.replaceChildren(el('p', 'empty', marketState === 'missing' ? 'The value history is missing from this update. Run update.py again.' : 'Loading the market…'));
+    if (marketState !== 'missing') loadMarket(() => { if (view === 'market') renderMarket(); });
+    return;
+  }
+  const kinds = Object.keys(window.MARKET.history);
+  if (!kinds.includes(mk.kind)) mk.kind = kinds[0];
+
+  let roster = null;
+  if (mk.sub === 'team') {
+    try { roster = await marketRoster(); } catch (e) { roster = null; }
+    if (token !== marketToken) return;
+  }
+  box.replaceChildren();
+
+  // Tools: My team / Whole market, the value type, and search.
+  const tools = el('div', 'tools mk-tools');
+  const subs = el('div', 'tabs');
+  tabs(subs, [['team', 'My team'], ['market', 'Whole market']], mk.sub, v => { mk.sub = v; mk.sel = null; renderMarket(); });
+  tools.appendChild(subs);
+  if (kinds.length > 1) {
+    const kt = el('div', 'tabs');
+    tabs(kt, kinds.map(k => [k, k[0].toUpperCase() + k.slice(1)]), mk.kind, v => { mk.kind = v; renderMarket(); });
+    tools.appendChild(kt);
+  }
+  const search = el('input'); search.type = 'search'; search.placeholder = 'Search players'; search.setAttribute('aria-label', 'Search players'); search.value = mk.q;
+  tools.appendChild(search);
+  box.appendChild(tools);
+  const results = el('div', 'mk-results');
+  box.appendChild(results);
+  const drawResults = () => {
+    results.replaceChildren();
+    const q = normName(search.value || '');
+    if (q.length < 2) return;
+    const series = window.MARKET.history[mk.kind].series;
+    Object.keys(series).map(mkPlayer).filter(p => p && normName(p.name).includes(q)).slice(0, 8).forEach(p => {
+      const b = el('button', 'btn ghost', ''); b.type = 'button';
+      b.appendChild(nameTag(p, {link: false}));
+      b.addEventListener('click', () => { mk.sel = p.sid; mk.q = ''; renderMarket(); });
+      results.appendChild(b);
+    });
+    if (!results.children.length) results.appendChild(el('span', 'desc', 'No player with a recorded value matches that.'));
+  };
+  search.addEventListener('input', () => { mk.q = search.value; drawResults(); });
+  drawResults();
+
+  // Who's listed: your roster, or every player, by how much they moved this week.
+  let players;
+  if (mk.sub === 'team') {
+    if (!roster) {
+      box.appendChild(el('p', 'desc', 'Connect a league on My league to see your team here. Meanwhile, here is the whole market.'));
+      mk.sub = 'market';
+      return renderMarket();
+    }
+    players = roster.me.players.map(pl => pl.sid).filter(Boolean);
+  } else {
+    players = Object.keys(window.MARKET.history[mk.kind].series);
+  }
+  const rows = players.map(sid => ({sid, p: mkPlayer(sid), c: mkChange(mkSeries(sid))})).filter(r => r.p);
+  rows.sort((a, b) => (b.c ? Math.abs(b.c.pct) : -1) - (a.c ? Math.abs(a.c.pct) : -1));
+  let listed = rows;
+  if (mk.sub === 'market') {
+    listed = rows.filter(r => r.c && (mk.dir === 'all' || (mk.dir === 'up' ? r.c.pct > 0 : r.c.pct < 0))).slice(0, 100);
+  }
+  if (!mk.sel || !mkSeries(mk.sel).length) mk.sel = (listed.find(r => r.c) || listed[0] || {}).sid || null;
+
+  const grid = el('div', 'mk-grid');
+  const main = el('div', 'mk-main');
+  const side = el('div', 'mk-side');
+  grid.appendChild(main); grid.appendChild(side);
+  box.appendChild(grid);
+
+  // Left: the selected player (at first, the biggest mover) and his chart.
+  if (mk.sel) drawMarketMain(main, mk.sel, mk.sub === 'team' && mk.sel === (rows.find(r => r.c) || {}).sid);
+  else main.appendChild(el('p', 'empty', 'No values recorded for these players yet.'));
+
+  // Right: everyone else, biggest move first, as a percentage.
+  const head = el('div', 'mk-side-head');
+  head.appendChild(el('h3', '', mk.sub === 'team' ? roster.me.name : 'Biggest movers'));
+  if (mk.sub === 'market') {
+    const dirs = el('div', 'tabs');
+    tabs(dirs, [['all', 'All'], ['up', 'Rising'], ['down', 'Falling']], mk.dir, v => { mk.dir = v; mk.sel = null; renderMarket(); });
+    head.appendChild(dirs);
+  }
+  side.appendChild(head);
+  const list = el('div', 'mk-list');
+  listed.forEach(r => {
+    const b = el('button', 'mk-row' + (r.sid === mk.sel ? ' on' : '')); b.type = 'button';
+    b.appendChild(nameTag(r.p, {link: false}));
+    b.appendChild(el('span', 'mk-pct ' + pctClass(r.c), pctText(r.c)));
+    b.addEventListener('click', () => { mk.sel = r.sid; renderMarket(); });
+    list.appendChild(b);
+  });
+  if (!listed.length) list.appendChild(el('p', 'empty', 'Nobody to list yet.'));
+  side.appendChild(list);
+  const label = window.MARKET.labels[mk.kind] || '';
+  const firstDay = window.MARKET.history[mk.kind].dates[0];
+  side.appendChild(el('p', 'note', `${label}. Percentages are the change over the past week${firstDay ? `; values are recorded once a day (history from ${shortDate(firstDay)})` : ''}.`
+    + (mk.sub === 'team' && rows.some(r => !r.c) ? ' Players with no market value (kickers, defenses, deep reserves) show –.' : '')));
+}
+
+function drawMarketMain(main, sid, biggest) {
+  const p = mkPlayer(sid);
+  const all = mkSeries(sid);
+  const week = mkChange(all);
+  const up = !week || week.pct >= 0;
+  const head = el('div', 'mk-head');
+  const photo = el('div', 'pl-photo mk-photo');
+  const src = imageFor(sid, p.pos, p.team);
+  if (src) { const img = el('img'); img.src = src; img.alt = ''; img.onerror = () => { photo.classList.add('none'); photo.replaceChildren(el('span', '', initialsOf(p.name, p.pos, p.team))); }; photo.appendChild(img); }
+  else { photo.classList.add('none'); photo.appendChild(el('span', '', initialsOf(p.name, p.pos, p.team))); }
+  tint(photo, p.team);
+  head.appendChild(photo);
+  const info = el('div', 'mk-info');
+  if (biggest) info.appendChild(el('div', 'desc', 'Biggest mover on your team this week'));
+  const name = el('div', 'mk-name'); name.appendChild(playerButton(sid, p.name)); const chip = teamChip(p.team); if (chip) name.appendChild(chip);
+  name.appendChild(el('span', 'pos', NBA && p.el ? p.el.join('/') : posLabel(p.pos)));
+  info.appendChild(name);
+  const price = el('div', 'mk-price');
+  price.appendChild(el('span', 'mk-value', all.length ? all[all.length - 1].v.toLocaleString() : '–'));
+  price.appendChild(el('span', 'mk-chg ' + pctClass(week), `${pctText(week)} ${spanText(week)}`));
+  info.appendChild(price);
+  head.appendChild(info);
+  main.appendChild(head);
+
+  const ranges = el('div', 'tabs mk-ranges');
+  tabs(ranges, MK_RANGES.map(([k]) => [k, k]), mk.range, v => { mk.range = v; renderMarket(); });
+  main.appendChild(ranges);
+  const days = (MK_RANGES.find(([k]) => k === mk.range) || [0, Infinity])[1];
+  const last = all.length ? all[all.length - 1].d : null;
+  const pts = days === Infinity || !last ? all : all.filter(p => p.d >= addDays(last, -days));
+  const chart = el('div', 'mk-chart');
+  main.appendChild(chart);
+  if (pts.length < 2) {
+    chart.appendChild(el('p', 'empty', all.length < 2 ? 'Only one day recorded so far. The chart fills in as the site updates each day.' : 'Nothing recorded in this range yet; try a longer one.'));
+  } else {
+    // Drawn once it's on the page, at its real width, and again when the width changes.
+    const draw = () => drawValueChart(chart, pts, up);
+    if (chart.clientWidth) draw(); else requestAnimationFrame(draw);
+    if (window.ResizeObserver) { let w = 0; new ResizeObserver(() => { if (chart.clientWidth !== w) { w = chart.clientWidth; draw(); } }).observe(chart); }
+  }
+  // The same numbers as a table, for screen readers and anyone who wants them.
+  const det = el('details', 'mk-table');
+  det.appendChild(el('summary', 'desc', 'Show values'));
+  det.appendChild(table([['Date', 'l'], 'Value'], pts.slice().reverse().map(x => { const tr = el('tr'); tr.appendChild(td(shortDate(x.d), 'l')); tr.appendChild(td(x.v.toLocaleString())); return tr; })));
+  main.appendChild(det);
+}
+
+/** A TradingView-style line: green when the week is up, red when down; crosshair and tooltip on hover. */
+function drawValueChart(box, pts, up) {
+  const W = Math.max(260, box.clientWidth), H = W < 480 ? 220 : 280;
+  const m = {l: 8, r: 58, t: 14, b: 26};
+  const vs = pts.map(p => p.v);
+  let lo = Math.min(...vs), hi = Math.max(...vs);
+  const pad = (hi - lo) * 0.12 || hi * 0.05 || 1;
+  lo -= pad; hi += pad;
+  const t0 = new Date(pts[0].d + 'T12:00:00').getTime(), t1 = new Date(pts[pts.length - 1].d + 'T12:00:00').getTime();
+  const x = d => m.l + (W - m.l - m.r) * ((new Date(d + 'T12:00:00').getTime() - t0) / ((t1 - t0) || 1));
+  const y = v => m.t + (H - m.t - m.b) * (1 - (v - lo) / (hi - lo));
+  const color = up ? 'var(--good)' : 'var(--bad)';
+  const ns = 'http://www.w3.org/2000/svg';
+  const S = (tag, attrs) => { const n = document.createElementNS(ns, tag); Object.entries(attrs).forEach(([k, v]) => n.setAttribute(k, v)); return n; };
+  const svg = S('svg', {width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Value from ${pts[0].v.toLocaleString()} to ${pts[pts.length - 1].v.toLocaleString()}`});
+  const gid = 'mkfill' + Math.random().toString(36).slice(2, 8);
+  const defs = S('defs', {});
+  const grad = S('linearGradient', {id: gid, x1: 0, y1: 0, x2: 0, y2: 1});
+  grad.appendChild(S('stop', {offset: '0%', 'stop-color': up ? 'var(--good)' : 'var(--bad)', 'stop-opacity': 0.22}));
+  grad.appendChild(S('stop', {offset: '100%', 'stop-color': up ? 'var(--good)' : 'var(--bad)', 'stop-opacity': 0}));
+  defs.appendChild(grad); svg.appendChild(defs);
+  // Recessive grid and right-hand value axis (a label the latest-value tag would cover is left out).
+  const tagY = y(pts[pts.length - 1].v);
+  for (let i = 0; i <= 3; i++) {
+    const v = lo + (hi - lo) * (i / 3), yy = y(v);
+    svg.appendChild(S('line', {x1: m.l, x2: W - m.r, y1: yy, y2: yy, class: 'mk-grid-line'}));
+    if (Math.abs(yy - tagY) < 18) continue;
+    const t = S('text', {x: W - m.r + 6, y: yy + 4, class: 'mk-axis'}); t.textContent = Math.round(v).toLocaleString(); svg.appendChild(t);
+  }
+  [pts[0], pts[Math.floor(pts.length / 2)], pts[pts.length - 1]].forEach((p, i) => {
+    const t = S('text', {x: x(p.d), y: H - 8, class: 'mk-axis', 'text-anchor': ['start', 'middle', 'end'][i]}); t.textContent = shortDate(p.d); svg.appendChild(t);
+  });
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.d).toFixed(1)},${y(p.v).toFixed(1)}`).join('');
+  svg.appendChild(S('path', {d: `${line}L${x(pts[pts.length - 1].d).toFixed(1)},${H - m.b}L${x(pts[0].d).toFixed(1)},${H - m.b}Z`, fill: `url(#${gid})`}));
+  svg.appendChild(S('path', {d: line, fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round'}));
+  // The latest value, tagged on the axis.
+  const lp = pts[pts.length - 1];
+  svg.appendChild(S('circle', {cx: x(lp.d), cy: y(lp.v), r: 4, fill: color, stroke: 'var(--card)', 'stroke-width': 2}));
+  const tag = S('rect', {x: W - m.r + 2, y: y(lp.v) - 10, width: m.r - 4, height: 20, rx: 4, class: up ? 'mk-tag up' : 'mk-tag down'});
+  svg.appendChild(tag);
+  const tt = S('text', {x: W - m.r + 6, y: y(lp.v) + 4, class: 'mk-tag-text'}); tt.textContent = lp.v.toLocaleString(); svg.appendChild(tt);
+  // Hover: crosshair, dot and tooltip at the nearest day.
+  const cross = S('line', {y1: m.t, y2: H - m.b, class: 'mk-cross', visibility: 'hidden'});
+  const dot = S('circle', {r: 4.5, fill: color, stroke: 'var(--card)', 'stroke-width': 2, visibility: 'hidden'});
+  svg.appendChild(cross); svg.appendChild(dot);
+  const hit = S('rect', {x: m.l, y: 0, width: W - m.l - m.r, height: H, fill: 'transparent'});
+  svg.appendChild(hit);
+  const tip = el('div', 'mk-tip'); tip.hidden = true;
+  const at = ev => {
+    const r = svg.getBoundingClientRect(), px = ev.clientX - r.left;
+    let best = pts[0];
+    pts.forEach(p => { if (Math.abs(x(p.d) - px) < Math.abs(x(best.d) - px)) best = p; });
+    const cx = x(best.d), cy = y(best.v);
+    cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
+    cross.setAttribute('visibility', 'visible'); dot.setAttribute('visibility', 'visible');
+    const vsStart = pts[0].v ? 100 * (best.v - pts[0].v) / pts[0].v : 0;
+    tip.replaceChildren(el('div', 'desc', new Date(best.d + 'T12:00:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'})),
+      el('b', '', best.v.toLocaleString()), el('span', vsStart >= 0 ? 'good' : 'bad', ` ${vsStart >= 0 ? '+' : '−'}${Math.abs(vsStart).toFixed(1)}% in range`));
+    tip.hidden = false;
+    tip.style.left = Math.min(Math.max(cx - 70, 0), W - m.r - 140) + 'px';
+    tip.style.top = Math.max(cy - 64, 0) + 'px';
+  };
+  hit.addEventListener('pointermove', at);
+  hit.addEventListener('pointerdown', at);
+  hit.addEventListener('pointerleave', () => { tip.hidden = true; cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); });
+  box.replaceChildren(svg, tip);
+}
+
 // ---------------------------------------------------------------- player popup: season game logs
 
 // Past seasons live in <page>.history.js (several MB), loaded the first time a popup opens.
@@ -1260,22 +1575,37 @@ function setHash(changes) {
 }
 
 function show(v) {
-  view = ['slate', 'league', 'games'].includes(v) ? v : 'rankings';
-  ['rankings', 'slate', 'league', 'games'].forEach(k => {
+  view = ['slate', 'league', 'market', 'games'].includes(v) ? v : 'rankings';
+  ['rankings', 'slate', 'league', 'market', 'games'].forEach(k => {
     document.getElementById('nav-' + k).setAttribute('aria-selected', String(view === k));
     document.getElementById('view-' + k).hidden = view !== k;
   });
   setHash({});
   if (view === 'league') renderLeague();
   if (view === 'games') renderGames();
+  if (view === 'market') renderMarket();
   if (view === 'slate') { renderSlate(); if (!slate.fetched || Date.now() - slate.fetched > 20000) refreshSlate(); }
 }
 document.getElementById('nav-rankings').addEventListener('click', () => show('rankings'));
 document.getElementById('nav-league').addEventListener('click', () => show('league'));
 document.getElementById('nav-games').addEventListener('click', () => show('games'));
+document.getElementById('nav-market').addEventListener('click', () => show('market'));
 document.getElementById('nav-slate').addEventListener('click', () => show('slate'));
 
 // ---------------------------------------------------------------- rankings tab
+
+/** Who a player's team plays in a league week: "vs DAL" (football), "vs LAL, BOS" (basketball, games left), or null. */
+function matchupOpponent(L, pl, week) {
+  const team = pl && pl.team;
+  if (!team) return null;
+  if (NBA) {
+    const days = periodsOf(L, week);
+    const opps = gamesOf(team).filter(g => days.includes(g[0]) && (week !== curWeek(L) || g[0] >= TODAY)).map(g => g[1]);
+    return opps.length ? 'vs ' + opps.join(', ') : null;
+  }
+  const g = nextGame(team, week);
+  return g && !g.bye ? 'vs ' + g.opp : null;   // a bye already shows its own badge
+}
 
 /** "vs KC" for the upcoming week (football), or every opponent left this week (basketball). */
 function weekOpponents(team) {
@@ -3308,10 +3638,10 @@ function renderWaiversTab(ctx, box, token) {
   }, 30);
 }
 
-function playerCell(pl, week) {
+function playerCell(pl, week, opp) {
   const c = td('', 'l');
   if (!pl) { c.appendChild(el('span', 'muted', 'Empty')); return c; }
-  c.appendChild(nameTag(pl));
+  c.appendChild(nameTag(pl, {opp}));
   if (week !== undefined && pl.team && BYES[pl.team] === week) c.appendChild(el('span', 'badge bad', 'BYE'));
   return c;
 }
@@ -3575,7 +3905,7 @@ function renderMatchupTab(ctx, box) {
       const showSoFar = live || lu.rows.some(r => soFar(r.pl) != null);
       head = [['Player', 'l'], ...(showSoFar ? ['So far'] : []), 'Games', 'Starts', 'Proj'];
       rows = lu.rows.map(r => {
-        const tr = el('tr', playingNow(r.pl) ? 'playing' : ''); tr.appendChild(playerCell(r.pl));
+        const tr = el('tr', playingNow(r.pl) ? 'playing' : ''); tr.appendChild(playerCell(r.pl, undefined, matchupOpponent(L, r.pl, w)));
         if (showSoFar) { const v = soFar(r.pl); tr.appendChild(td(v == null ? '–' : fmt(v), 'avg')); }
         tr.appendChild(td(r.games)); tr.appendChild(td(r.starts)); tr.appendChild(td(fmt(r.pts * A.scale), showSoFar ? 'muted' : 'avg'));
         return tr;
@@ -3585,7 +3915,7 @@ function renderMatchupTab(ctx, box) {
       rows = lu.rows.map(r => {
         const tr = el('tr');
         tr.appendChild(td(SLOT_LABEL[r.slot] || r.slot, 'l muted'));
-        tr.appendChild(playerCell(r.pl, w));
+        tr.appendChild(playerCell(r.pl, w, matchupOpponent(L, r.pl, w)));
         tr.appendChild(td(r.status || '', 'l muted mu-game'));
         tr.appendChild(td(fmt(r.pts * A.scale), 'avg'));
         return tr;
@@ -3595,7 +3925,7 @@ function renderMatchupTab(ctx, box) {
       rows = lu.rows.map(r => {
         const tr = el('tr', playingNow(r.pl) ? 'playing' : '');
         tr.appendChild(td(SLOT_LABEL[r.slot] || r.slot, 'l muted'));
-        tr.appendChild(playerCell(r.pl, w));
+        tr.appendChild(playerCell(r.pl, w, matchupOpponent(L, r.pl, w)));
         tr.appendChild(td(r.status || '', 'l muted mu-game'));
         tr.appendChild(td(r.live == null ? '–' : fmt(r.live), 'avg'));
         tr.appendChild(td(fmt(r.pts * A.scale), 'muted'));
@@ -3603,7 +3933,7 @@ function renderMatchupTab(ctx, box) {
       });
     } else {
       head = [['Slot', 'l'], ['Player', 'l'], 'Proj'];
-      rows = lu.rows.map(r => { const tr = el('tr', playingNow(r.pl) ? 'playing' : ''); tr.appendChild(td(SLOT_LABEL[r.slot] || r.slot, 'l muted')); tr.appendChild(playerCell(r.pl, w)); tr.appendChild(td(fmt(r.pts * A.scale), 'avg')); return tr; });
+      rows = lu.rows.map(r => { const tr = el('tr', playingNow(r.pl) ? 'playing' : ''); tr.appendChild(td(SLOT_LABEL[r.slot] || r.slot, 'l muted')); tr.appendChild(playerCell(r.pl, w, matchupOpponent(L, r.pl, w))); tr.appendChild(td(fmt(r.pts * A.scale), 'avg')); return tr; });
     }
     const foot = el('tr');
     foot.appendChild(td('Total', 'l'));
