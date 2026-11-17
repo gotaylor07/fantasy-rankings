@@ -5,6 +5,7 @@
     python3 update.py --demo     # fake players, no network needed
     python3 update.py --week 9   # override the detected upcoming week
     python3 update.py --espn-login   # sign in to ESPN in a browser window, add private leagues, then update
+    python3 update.py --yahoo-login  # sign in to Yahoo to add your Yahoo leagues, then update
 
 Private ESPN leagues listed in leagues.json are fetched too (see README).
 """
@@ -21,7 +22,7 @@ from zoneinfo import ZoneInfo
 # Apple's bundled Python links LibreSSL; urllib3 warns about it on every run but works.
 warnings.filterwarnings("ignore", message="urllib3 v2 only supports OpenSSL")
 
-from rankings import demo, depth, history, leagues, picks, players, site, slate
+from rankings import demo, depth, history, leagues, picks, players, site, slate, yahoo
 from rankings.aggregate import aggregate, upcoming_week
 from rankings.sources import espn_injuries, espn_ownership, sleeper_players, source_registry
 
@@ -108,6 +109,8 @@ def main() -> int:
     ap.add_argument("--week", type=int, help="upcoming week (default: detected from the date)")
     ap.add_argument("--espn-login", action="store_true",
                     help="sign in to ESPN in a browser window to add private leagues (then updates as usual)")
+    ap.add_argument("--yahoo-login", action="store_true",
+                    help="sign in to Yahoo to add your Yahoo leagues (then updates as usual)")
     ap.add_argument("--sport", choices=["all", "football", "basketball"], default="all",
                     help="which page to build (default: both)")
     args = ap.parse_args()
@@ -115,6 +118,8 @@ def main() -> int:
     if args.espn_login:
         from rankings import espn_login
         espn_login.run(LEAGUES_FILE)
+    if args.yahoo_login:
+        yahoo.run(LEAGUES_FILE)
 
     # GitHub's servers run on UTC, which is already "tomorrow" on US evenings; use Eastern time.
     today = datetime.now(ZoneInfo("America/New_York")).date()
@@ -153,7 +158,9 @@ def run_football(args, today: date) -> int:
             print(f"  FAIL players  {type(exc).__name__}: {exc}", file=sys.stderr)
             player_data = previous_data.get("players") or {}
             player_data["failed"] = [f"{type(exc).__name__}: {exc}"]
-        league_data = {"espn": leagues.fetch_configured(load_leagues_config(), season)}
+        config = load_leagues_config()
+        league_data = {"espn": leagues.fetch_configured(config, season),
+                       "yahoo": yahoo.fetch_configured(config, "football", yahoo.football_ids(player_data), LEAGUES_FILE)}
     meta = None
     if not args.demo:
         try:

@@ -5,5 +5,17 @@
       "espn_s2": "paste the espn_s2 cookie value here",
       "swid": "{PASTE-THE-SWID-COOKIE-INCLUDING-BRACES}"
     }
-  ]
+  ],
+  "yahoo": {
+    "client_id": "your Yahoo app's Client ID",
+    "client_secret": "your Yahoo app's Client Secret",
+    "refresh_token": "filled in by python3 update.py --yahoo-login",
+    "leagues": [
+      {
+        "league_key": "461.l.123456",
+        "sport": "football",
+        "name": "My Yahoo league"
+      }
+    ]
+  }
 }

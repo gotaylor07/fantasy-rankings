@@ -61,8 +61,8 @@ jobs:
           key: data-${{ github.run_id }}
           restore-keys: data-
 
-      # Optional: private ESPN leagues. Paste your leagues.json into a repository secret named LEAGUES_JSON.
-      - name: Private ESPN leagues
+      # Optional: private ESPN and Yahoo leagues. Paste your leagues.json into a repository secret named LEAGUES_JSON.
+      - name: Private ESPN and Yahoo leagues
         if: steps.when.outputs.run == 'yes'
         env:
           LEAGUES_JSON: ${{ secrets.LEAGUES_JSON }}
