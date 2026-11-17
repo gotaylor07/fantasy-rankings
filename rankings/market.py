@@ -134,6 +134,7 @@ def demo_history(day: date, base: dict, kind: str, seed: int = 21, days: int = 9
 def write(out_path: Path, history: dict, labels: dict) -> str:
     """Write <page>.market.js next to the page; returns its file name."""
     path = out_path.with_name(out_path.stem + ".market.js")
+    path.parent.mkdir(parents=True, exist_ok=True)   # written before the page, so site/ may not exist yet
     js = json.dumps({"history": history, "labels": labels}, separators=(",", ":"))
     path.write_text(f"window.MARKET = {js};\n", encoding="utf-8")
     return path.name
