@@ -413,6 +413,11 @@ tr.cur-week.live td{background:color-mix(in srgb,#ef4444 8%,var(--card))}
 .mu-pts{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-top:6px;font-variant-numeric:tabular-nums}
 .mu-win{font-weight:700;margin-top:4px}
 .mu-vs{color:var(--muted);font-weight:700}
+/* Matchup lineups sit side by side, so let names and game times wrap rather than push the points out of view. */
+.mu-grid th,.mu-grid td{padding:7px 8px}
+.mu-grid td.l{white-space:normal}
+.mu-grid .ptag{flex-wrap:wrap;column-gap:5px;row-gap:2px}
+.mu-grid td.mu-game{font-size:12px;min-width:56px}
 .mu-bar{height:10px;border-radius:999px;background:color-mix(in srgb,var(--bad) 45%,var(--line));overflow:hidden;margin-bottom:16px}
 .mu-bar span{display:block;height:100%;background:var(--accent)}
 .badge.good-badge{color:var(--good);border-color:color-mix(in srgb,var(--good) 50%,transparent);background:color-mix(in srgb,var(--good) 9%,transparent)}
@@ -445,7 +450,7 @@ td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
 .gv-play{flex-wrap:wrap}
 .gv-play.score .gv-score{display:block;flex-basis:100%;padding-left:36px}
 }
-@media (max-width:640px){.gv-big-score{font-size:26px}.gv-big-logo{width:32px;height:32px}.gv-team-name{font-size:14px}.d-offer{grid-template-columns:repeat(2,minmax(0,1fr))}.g-stage{grid-template-columns:1fr}.g-left{position:static}.g-card.big .pl-photo{width:110px;height:110px}.mu-score{gap:8px;padding:12px}.mu-name{font-size:14px;flex-wrap:wrap;gap:4px}.mu-side .desc{font-size:11px}.mu-pts{font-size:26px}.mu-win{font-size:13px}.mu-vs{font-size:12px}.hero{flex-wrap:wrap}.sport{margin-left:0}.connect,.trade-grid{grid-template-columns:minmax(0,1fr)}th,td{padding:8px 9px}.pl-photo{width:76px;height:76px}.dlg-head{flex-wrap:wrap}.nav{display:flex;width:100%;overflow-x:auto;scrollbar-width:none}.nav::-webkit-scrollbar{display:none}.nav button{flex:1 0 auto;padding:8px 10px;font-size:13px;white-space:nowrap}.nav-full{display:none}.nav-short{display:inline}h1{font-size:20px}}
+@media (max-width:640px){.gv-big-score{font-size:26px}.gv-big-logo{width:32px;height:32px}.gv-team-name{font-size:14px}.d-offer{grid-template-columns:repeat(2,minmax(0,1fr))}.g-stage{grid-template-columns:1fr}.g-left{position:static}.g-card.big .pl-photo{width:110px;height:110px}.mu-score{gap:8px;padding:12px}.mu-grid th,.mu-grid td{padding:6px 5px;font-size:13px}.mu-grid th{font-size:10px;letter-spacing:.03em}.mu-grid .face{width:22px;height:22px}.mu-grid .ptag .pos{display:none}.mu-name{font-size:14px;flex-wrap:wrap;gap:4px}.mu-side .desc{font-size:11px}.mu-pts{font-size:26px}.mu-win{font-size:13px}.mu-vs{font-size:12px}.hero{flex-wrap:wrap}.sport{margin-left:0}.connect,.trade-grid{grid-template-columns:minmax(0,1fr)}th,td{padding:8px 9px}.pl-photo{width:76px;height:76px}.dlg-head{flex-wrap:wrap}.nav{display:flex;width:100%;overflow-x:auto;scrollbar-width:none}.nav::-webkit-scrollbar{display:none}.nav button{flex:1 0 auto;padding:8px 10px;font-size:13px;white-space:nowrap}.nav-full{display:none}.nav-short{display:inline}h1{font-size:20px}}
 </style>
 </head>
 <body>
@@ -3559,7 +3564,7 @@ function renderMatchupTab(ctx, box) {
   bar.setAttribute('aria-label', `${sides[0][0].name} ${Math.round(100 * sides[0][4])}% to win`);
   s.appendChild(bar);
 
-  const grid = el('div', 'trade-grid');
+  const grid = el('div', 'trade-grid mu-grid');
   sides.forEach(([t, lu]) => {
     const col = el('div');
     col.appendChild(el('h3', '', t.name));
@@ -3581,7 +3586,7 @@ function renderMatchupTab(ctx, box) {
         const tr = el('tr');
         tr.appendChild(td(SLOT_LABEL[r.slot] || r.slot, 'l muted'));
         tr.appendChild(playerCell(r.pl, w));
-        tr.appendChild(td(r.status || '', 'l muted'));
+        tr.appendChild(td(r.status || '', 'l muted mu-game'));
         tr.appendChild(td(fmt(r.pts * A.scale), 'avg'));
         return tr;
       });
@@ -3591,7 +3596,7 @@ function renderMatchupTab(ctx, box) {
         const tr = el('tr', playingNow(r.pl) ? 'playing' : '');
         tr.appendChild(td(SLOT_LABEL[r.slot] || r.slot, 'l muted'));
         tr.appendChild(playerCell(r.pl, w));
-        tr.appendChild(td(r.status || '', 'l muted'));
+        tr.appendChild(td(r.status || '', 'l muted mu-game'));
         tr.appendChild(td(r.live == null ? '–' : fmt(r.live), 'avg'));
         tr.appendChild(td(fmt(r.pts * A.scale), 'muted'));
         return tr;
