@@ -420,6 +420,8 @@ tr.cur-week.live td{background:color-mix(in srgb,#ef4444 8%,var(--card))}
 .mu-grid td.mu-game{font-size:12px;min-width:56px}
 /* Market tab */
 .mk-tools{align-items:flex-start}
+.mk-pickers{justify-content:flex-start;gap:14px}
+.mk-kind{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.mk-kind .tabs{margin:0}.mk-kind .note{margin:0}
 .mk-tools .tabs{margin-bottom:0}
 .mk-results{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 12px}
 .mk-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:16px;align-items:start}
@@ -1007,7 +1009,10 @@ const pctClass = c => (!c ? 'muted' : c.pct > 0 ? 'good' : c.pct < 0 ? 'bad' : '
 const spanText = c => (!c ? '' : c.days === 7 ? 'past week' : c.days < 7 ? `since ${shortDate(c.from.d)}` : `past ${c.days} days`);
 const mkPlayer = sid => (P[sid] ? {sid, name: P[sid].n, pos: P[sid].p, team: P[sid].t, el: P[sid].el} : null);
 
-/** Your roster in the league you last picked on My league, or null if no league is connected. */
+/**
+ * The league and team the Market follows: the same picks as My league (changing them here changes them there).
+ * {list, active, L, me}, or null if no league is connected.
+ */
 async function marketRoster() {
   if (sleeperLeagues === null) await refreshSleeperLeagues();
   const list = leagueList();
@@ -1017,7 +1022,19 @@ async function marketRoster() {
   const L = await getLeague(active);
   const saved = (s.myTeam || {})[active.key];
   const me = L.teams.find(t => t.id === saved) || L.teams.find(t => t.id === L.myTeam) || L.teams[0];
-  return me ? {L, me} : null;
+  return me ? {list, active, L, me} : null;
+}
+
+/**
+ * Redraft or dynasty values for a league: what you last picked for it, else what the league says
+ * (Sleeper marks dynasty leagues; ESPN doesn't), else redraft.
+ */
+function marketKindFor(roster, kinds) {
+  if (kinds.length < 2) return {kind: kinds[0], from: null};
+  if (!roster) return {kind: kinds.includes(mk.kind) ? mk.kind : 'redraft', from: null};
+  const saved = (store.get().marketKind || {})[roster.active.key];
+  if (kinds.includes(saved)) return {kind: saved, from: 'saved'};
+  return roster.L.dynasty ? {kind: 'dynasty', from: 'league'} : {kind: 'redraft', from: null};
 }
 
 let marketToken = 0;
@@ -1030,24 +1047,53 @@ async function renderMarket() {
     return;
   }
   const kinds = Object.keys(window.MARKET.history);
-  if (!kinds.includes(mk.kind)) mk.kind = kinds[0];
-
   let roster = null;
-  if (mk.sub === 'team') {
-    try { roster = await marketRoster(); } catch (e) { roster = null; }
-    if (token !== marketToken) return;
-  }
+  try { roster = await marketRoster(); } catch (e) { roster = null; }
+  if (token !== marketToken) return;
+  const kindPick = marketKindFor(roster, kinds);
+  mk.kind = kindPick.kind;
   box.replaceChildren();
 
-  // Tools: My team / Whole market, the value type, and search.
+  // Your league and team, the same pickers as on My league.
+  if (roster) {
+    const pickers = el('div', 'tools mk-pickers');
+    const lab = el('label', 'desc', 'League ');
+    const lsel = el('select');
+    roster.list.forEach(l => { const o = el('option', '', l.label); o.value = l.key; o.selected = l.key === roster.active.key; lsel.appendChild(o); });
+    lsel.addEventListener('change', () => { const st = store.get(); st.active = lsel.value; store.set(st); tradeState = null; mk.sel = null; renderMarket(); });
+    lab.appendChild(lsel);
+    pickers.appendChild(lab);
+    const tlab = el('label', 'desc', 'Your team ');
+    const tsel = el('select');
+    roster.L.teams.forEach(t => { const o = el('option', '', t.name); o.value = String(t.id); tsel.appendChild(o); });
+    tsel.value = String(roster.me.id);
+    tsel.addEventListener('change', () => {
+      const st = store.get(); st.myTeam = st.myTeam || {};
+      st.myTeam[roster.active.key] = roster.L.teams.find(x => String(x.id) === tsel.value).id; store.set(st);
+      tradeState = null; mk.sel = null; renderMarket();
+    });
+    tlab.appendChild(tsel);
+    pickers.appendChild(tlab);
+    box.appendChild(pickers);
+  }
+
+  // Tools: My team / Whole market, the value type (remembered per league), and search.
   const tools = el('div', 'tools mk-tools');
   const subs = el('div', 'tabs');
   tabs(subs, [['team', 'My team'], ['market', 'Whole market']], mk.sub, v => { mk.sub = v; mk.sel = null; renderMarket(); });
   tools.appendChild(subs);
   if (kinds.length > 1) {
+    const kwrap = el('div', 'mk-kind');
     const kt = el('div', 'tabs');
-    tabs(kt, kinds.map(k => [k, k[0].toUpperCase() + k.slice(1)]), mk.kind, v => { mk.kind = v; renderMarket(); });
-    tools.appendChild(kt);
+    tabs(kt, kinds.map(k => [k, k[0].toUpperCase() + k.slice(1)]), mk.kind, v => {
+      mk.kind = v;
+      if (roster) { const st = store.get(); st.marketKind = Object.assign(st.marketKind || {}, {[roster.active.key]: v}); store.set(st); }
+      renderMarket();
+    });
+    kwrap.appendChild(kt);
+    if (kindPick.from === 'league') kwrap.appendChild(el('span', 'note', `${roster.L.platform} says this is a dynasty league`));
+    else if (roster && kindPick.from === 'saved') kwrap.appendChild(el('span', 'note', 'Remembered for this league'));
+    tools.appendChild(kwrap);
   }
   const search = el('input'); search.type = 'search'; search.placeholder = 'Search players'; search.setAttribute('aria-label', 'Search players'); search.value = mk.q;
   tools.appendChild(search);
