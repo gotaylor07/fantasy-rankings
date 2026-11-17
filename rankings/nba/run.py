@@ -5,7 +5,7 @@ import json
 import sys
 from datetime import date, datetime
 
-from .. import leagues, picks, site, slate, yahoo
+from .. import leagues, picks, site, slate
 from . import build as nb
 from . import demo
 
@@ -64,9 +64,8 @@ def run(args, today: date) -> int:
             print(f"  FAIL nba      ESPN schedule {type(exc).__name__}: {exc}", file=sys.stderr)
         seasons = nb.history(season, pd, nb.sleeper_players())
         print(f"  ok   nba      history       {len(seasons)} past seasons")
-        config = update.load_leagues_config()
-        league_data = {"espn": leagues.fetch_configured(config, season, "basketball", nb.espn_season(season)),
-                       "yahoo": yahoo.fetch_configured(config, "basketball", yahoo.basketball_ids(pd), update.LEAGUES_FILE)}
+        league_data = {"espn": leagues.fetch_configured(update.load_leagues_config(), season, "basketball",
+                                                        nb.espn_season(season))}
 
     slate_data = {}
     if not args.demo:

@@ -136,7 +136,7 @@ td.good b,td.bad b{color:inherit}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px;box-shadow:var(--shadow)}
 .section{margin-bottom:26px}
 .section > .desc{margin:0 0 10px}
-.connect{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.connect{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .connect form{display:flex;gap:8px;margin-top:8px}
 .connect form input{flex:1}
 .note{font-size:12px;color:var(--muted);margin:6px 0 0}
@@ -516,10 +516,6 @@ td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
           </form>
           <p class="note">Works here for public leagues. For a private league, run <code>python3 update.py --espn-login</code>: it opens ESPN so you can sign in, then adds your leagues here.</p>
           <p class="err" id="espnErr" hidden></p>
-        </div>
-        <div>
-          <strong>Yahoo</strong>
-          <p class="note">Yahoo needs a sign-in for every league, so Yahoo leagues are added from the project folder: run <code>python3 update.py --yahoo-login</code>. It walks you through Yahoo's sign-in, then your leagues show up in the list above.</p>
         </div>
       </div>
     </div>
@@ -1521,15 +1517,6 @@ function leagueList() {
     key: 'espncfg:' + e.league_id,
     label: (e.data ? e.data.settings.name || `ESPN ${e.league_id}` : `ESPN ${e.league_id}`) + ' (ESPN, from leagues.json)',
     load: async () => { if (!e.data) throw new Error(`update.py could not load this league: ${e.error}`); return (NBA ? parseEspnNba : parseEspn)(e.data, e.my_team); },
-  }));
-  // Yahoo leagues come from leagues.json, fetched by update.py in Sleeper's shape.
-  ((D.leagues || {}).yahoo || []).forEach(e => out.push({
-    key: 'yahoocfg:' + e.league_key,
-    label: `${e.name || 'Yahoo ' + e.league_key} (Yahoo, from leagues.json)`,
-    load: async () => {
-      if (!e.data) throw new Error(`update.py could not load this league: ${e.error}`);
-      return Object.assign(parseSleeper(e.data), {platform: 'Yahoo'});
-    },
   }));
   (sleeperLeagues || []).forEach(l => out.push({key: 'sleeper:' + l.league_id, label: `${l.name} (Sleeper)`, removable: 'sleeper', load: () => loadSleeper(l.league_id)}));
   (s.espn || []).forEach(e => {
