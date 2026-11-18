@@ -55,13 +55,16 @@ def aggregate(source_rows: dict[str, list[dict]], limits: dict = LIMITS, positio
     """Average each player's position rank across the sources that list them.
 
     A player must appear in at least two sources (or one, if only one source
-    returned data) so a single outlier source can't put an unknown player on
-    the board.
+    ranks that position, e.g. kickers) so a single outlier source can't put an
+    unknown player on the board.
     """
     per_source = {s: position_ranks(rows) for s, rows in source_rows.items() if rows}
     if not per_source:
         return {}
-    min_sources = min(2, len(per_source))
+    covering = {}   # position -> how many sources rank it
+    for ranks in per_source.values():
+        for pos in {pos for _, pos in ranks}:
+            covering[pos] = covering.get(pos, 0) + 1
 
     merged: dict = {}
     for source, ranks in per_source.items():
@@ -73,7 +76,7 @@ def aggregate(source_rows: dict[str, list[dict]], limits: dict = LIMITS, positio
 
     result: dict[str, list[dict]] = {p: [] for p in positions}
     for (_, pos), m in merged.items():
-        if pos not in result or len(m["ranks"]) < min_sources:
+        if pos not in result or len(m["ranks"]) < min(2, covering[pos]):
             continue
         vals = list(m["ranks"].values())
         result[pos].append(

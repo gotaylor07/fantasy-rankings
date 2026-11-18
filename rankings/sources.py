@@ -80,7 +80,7 @@ def _json_after(text: str, marker: str, opener: str) -> object:
 
 
 # --------------------------------------------------------------------------
-# Sleeper: projected PPR points (week and rest of season)
+# Sleeper: player info, projections and box scores (used for players and leagues, not the boards)
 # --------------------------------------------------------------------------
 
 def sleeper_players() -> dict:
@@ -109,38 +109,6 @@ def sleeper_stats(season: int, week: int) -> list:
     entries = _get(f"https://api.sleeper.com/stats/nfl/{season}/{week}", params=params).json()
     time.sleep(0.3)
     return entries
-
-
-def _sleeper_points(season: int, weeks) -> list[dict]:
-    meta = sleeper_players()
-    totals: dict[str, dict] = {}
-    for week in weeks:
-        for e in sleeper_projections(season, week):
-            pts = (e.get("stats") or {}).get("pts_ppr")
-            if pts is None:
-                continue
-            pid = str(e.get("player_id"))
-            info = meta.get(pid) or e.get("player") or {}
-            pos = info.get("position")
-            if pos not in LINEUP_POSITIONS:
-                continue
-            name = sleeper_name(info)
-            if not name:
-                continue
-            row = totals.setdefault(
-                pid,
-                {"name": name, "pos": pos, "team": info.get("team") or e.get("team") or "", "score": 0.0},
-            )
-            row["score"] += float(pts)
-    return [r for r in totals.values() if r["score"] > 0]
-
-
-def sleeper_week(season: int, week: int) -> list[dict]:
-    return _sleeper_points(season, [week])
-
-
-def sleeper_ros(season: int, week: int) -> list[dict]:
-    return _sleeper_points(season, range(week, LAST_WEEK + 1))
 
 
 # --------------------------------------------------------------------------
@@ -307,11 +275,9 @@ def espn_injuries() -> list[dict]:
 def source_registry(season: int, week: int) -> dict:
     return {
         "week": {
-            "Sleeper": lambda: sleeper_week(season, week),
             "FantasyPros": lambda: fantasypros("week"),
         },
         "ros": {
-            "Sleeper": lambda: sleeper_ros(season, week),
             "FantasyPros": lambda: fantasypros("ros"),
             "FantasyCalc": lambda: fantasycalc(False),
         },

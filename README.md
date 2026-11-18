@@ -28,8 +28,8 @@ Options: `--week 9` overrides the detected upcoming week, `--season 2026` overri
 
 | Ranking | Sources |
 | --- | --- |
-| Upcoming week | Sleeper (projected PPR points), FantasyPros (expert consensus). K and D/ST from both |
-| Rest of season | Sleeper (projected points summed through Week 18), FantasyPros ROS, FantasyCalc (redraft values). K and D/ST from Sleeper and FantasyPros |
+| Upcoming week | FantasyPros (expert consensus), including K and D/ST |
+| Rest of season | FantasyPros ROS, FantasyCalc (redraft values). K and D/ST from FantasyPros |
 | Dynasty | FantasyCalc, KeepTradeCut, FantasyPros dynasty |
 
 The **Live leaders** tab next to Dynasty ranks this week's actual fantasy scorers at each position (football full PPR; basketball ESPN standard points, summed over the week's games), live from Sleeper's weekly stats; it refreshes every minute while games are on, and players in a game right now are highlighted.

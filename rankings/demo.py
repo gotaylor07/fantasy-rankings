@@ -13,8 +13,8 @@ POOL = {"QB": 44, "RB": 84, "WR": 110, "TE": 44}
 KD_POOL = {"K": 16, "DEF": 12}
 
 DEMO_SOURCES = {
-    "week": ["Sleeper", "FantasyPros"],
-    "ros": ["Sleeper", "FantasyPros", "FantasyCalc"],
+    "week": ["FantasyPros"],
+    "ros": ["FantasyPros", "FantasyCalc"],
     "dynasty": ["FantasyCalc", "KeepTradeCut", "FantasyPros"],
 }
 

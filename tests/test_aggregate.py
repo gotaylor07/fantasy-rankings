@@ -77,6 +77,13 @@ class AggregateTests(unittest.TestCase):
         src = {"S1": rows("QB", ["Alpha", "Bravo"], "score"), "S2": []}
         self.assertEqual([r["name"] for r in aggregate(src)["QB"]], ["Alpha", "Bravo"])
 
+    def test_position_only_one_source_ranks_still_shows(self):
+        # FantasyCalc has no kickers, so FantasyPros alone ranks them; skill players still need two.
+        out = aggregate({"A": rows("K", ["K1", "K2"], "rank") + rows("RB", ["R1", "R2"], "rank"),
+                         "B": rows("RB", ["R1"], "rank")})
+        self.assertEqual([r["name"] for r in out["K"]], ["K1", "K2"])
+        self.assertEqual([r["name"] for r in out["RB"]], ["R1"])
+
     def test_no_sources(self):
         self.assertEqual(aggregate({"S1": []}), {})
 

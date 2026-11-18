@@ -1715,7 +1715,7 @@ function renderRankings() {
   notes.push(`${T.tab} uses ${sources.length ? sources.join(', ') : 'no sources'}.`);
   Object.entries(T.failed || {}).forEach(([s, msg]) => notes.push(`${s} was unavailable this run (${msg.slice(0, 120)}).`));
   if (T.stale) notes.push('Showing the previous successful run because every source failed.');
-  notes.push('Source columns show each site\'s position rank. Players must appear in at least two sources. Click a player for their game log.');
+  notes.push(`Source columns show each site's position rank.${sources.length > 1 ? ' Players must appear in at least two sources.' : ''} Click a player for their game log.`);
   document.getElementById('foot').textContent = notes.join(' ');
 }
 
