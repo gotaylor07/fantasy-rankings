@@ -448,6 +448,10 @@ tr.cur-week.live td{background:color-mix(in srgb,#ef4444 8%,var(--card))}
 .mk-table{margin-top:10px}.mk-table summary{cursor:pointer}
 .mk-side-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px}
 .mk-side-head h3{margin:0}.mk-side-head .tabs{margin:0}
+.mk-dirs{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.mk-filter{font:inherit;font-size:12.5px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--muted);cursor:pointer;white-space:nowrap}
+.mk-filter:hover{color:var(--text)}
+.mk-filter.on{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
 .mk-list{display:flex;flex-direction:column;max-height:560px;overflow:auto;margin:0 -6px}
 .mk-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 6px;border:0;border-bottom:1px solid var(--line);background:none;color:var(--text);font:inherit;text-align:left;cursor:pointer;border-radius:8px}
 .mk-row:hover{background:var(--hover)}.mk-row.on{background:var(--chg)}
@@ -984,7 +988,10 @@ function loadMarket(onDone) {
 }
 
 const MK_RANGES = [['1W', 7], ['1M', 30], ['3M', 91], ['ALL', Infinity]];
-const mk = {sub: 'team', kind: null, sel: null, range: '1M', q: '', dir: 'all'};
+const mk = {sub: 'team', kind: null, sel: null, range: '1M', q: '', dir: 'all', big: false};
+// The Whole market filter: worth at least this much, or moved at least this many points in the selected range.
+const MK_BIG_VALUE = 1000, MK_BIG_MOVE = 500;
+const mkRangeDays = () => (MK_RANGES.find(([k]) => k === mk.range) || [0, Infinity])[1];
 
 /** A player's recorded values, oldest first: [{d, v}]. */
 function mkSeries(sid) {
@@ -999,7 +1006,7 @@ const daysBetween = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a
 function mkChange(pts, days = 7) {
   if (pts.length < 2) return null;
   const last = pts[pts.length - 1];
-  const cutoff = addDays(last.d, -days);
+  const cutoff = days === Infinity ? '' : addDays(last.d, -days);
   const base = pts.slice().reverse().find(p => p.d <= cutoff) || pts[0];
   if (base === last || !base.v) return null;
   return {pct: 100 * (last.v - base.v) / base.v, from: base, to: last, days: daysBetween(base.d, last.d)};
@@ -1128,11 +1135,14 @@ async function renderMarket() {
   } else {
     players = Object.keys(window.MARKET.history[mk.kind].series);
   }
-  const rows = players.map(sid => ({sid, p: mkPlayer(sid), c: mkChange(mkSeries(sid))})).filter(r => r.p);
+  // Your team: the past week. Whole market: the range picked above the chart (1W, 1M, 3M, All).
+  const span = mk.sub === 'market' ? mkRangeDays() : 7;
+  const rows = players.map(sid => ({sid, p: mkPlayer(sid), c: mkChange(mkSeries(sid), span)})).filter(r => r.p);
   rows.sort((a, b) => (b.c ? Math.abs(b.c.pct) : -1) - (a.c ? Math.abs(a.c.pct) : -1));
   let listed = rows;
   if (mk.sub === 'market') {
-    listed = rows.filter(r => r.c && (mk.dir === 'all' || (mk.dir === 'up' ? r.c.pct > 0 : r.c.pct < 0))).slice(0, 100);
+    listed = rows.filter(r => r.c && (mk.dir === 'all' || (mk.dir === 'up' ? r.c.pct > 0 : r.c.pct < 0))
+      && (!mk.big || r.c.to.v >= MK_BIG_VALUE || Math.abs(r.c.to.v - r.c.from.v) >= MK_BIG_MOVE)).slice(0, 100);
   }
   if (!mk.sel || !mkSeries(mk.sel).length) mk.sel = (listed.find(r => r.c) || listed[0] || {}).sid || null;
 
@@ -1152,7 +1162,14 @@ async function renderMarket() {
   if (mk.sub === 'market') {
     const dirs = el('div', 'tabs');
     tabs(dirs, [['all', 'All'], ['up', 'Rising'], ['down', 'Falling']], mk.dir, v => { mk.dir = v; mk.sel = null; renderMarket(); });
-    head.appendChild(dirs);
+    const big = el('button', 'mk-filter' + (mk.big ? ' on' : ''), `Value ${MK_BIG_VALUE.toLocaleString()}+ or ±${MK_BIG_MOVE}`);
+    big.type = 'button';
+    big.title = `Only players worth at least ${MK_BIG_VALUE.toLocaleString()}, or whose value moved ${MK_BIG_MOVE}+ points over the selected range`;
+    big.setAttribute('aria-pressed', String(mk.big));
+    big.addEventListener('click', () => { mk.big = !mk.big; mk.sel = null; renderMarket(); });
+    const ctl = el('div', 'mk-dirs');
+    ctl.appendChild(dirs); ctl.appendChild(big);
+    head.appendChild(ctl);
   }
   side.appendChild(head);
   const list = el('div', 'mk-list');
@@ -1167,7 +1184,8 @@ async function renderMarket() {
   side.appendChild(list);
   const label = window.MARKET.labels[mk.kind] || '';
   const firstDay = window.MARKET.history[mk.kind].dates[0];
-  side.appendChild(el('p', 'note', `${label}. Percentages are the change over the past week${firstDay ? `; values are recorded once a day (history from ${shortDate(firstDay)})` : ''}.`
+  const spanNote = mk.sub === 'market' ? (span === Infinity ? 'over everything recorded' : `over the selected range (${mk.range})`) : 'over the past week';
+  side.appendChild(el('p', 'note', `${label}. Percentages are the change ${spanNote}${mk.sub === 'market' && mk.big ? `; filtered to players worth ${MK_BIG_VALUE.toLocaleString()}+ or who moved ${MK_BIG_MOVE}+ points` : ''}${firstDay ? `; values are recorded once a day (history from ${shortDate(firstDay)})` : ''}.`
     + (mk.sub === 'team' && rows.some(r => !r.c) ? ' Players with no market value (kickers, defenses, deep reserves) show –.' : '')));
 }
 
