@@ -56,6 +56,9 @@ body{margin:0;min-height:100vh;color:var(--text);font:15px/1.5 Inter,system-ui,-
 .hero{display:flex;align-items:center;gap:14px;margin-bottom:18px}
 .gear{flex:none;width:44px;height:44px;display:grid;place-items:center;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer;box-shadow:var(--shadow);transition:transform .2s}
 .gear:hover{transform:rotate(30deg);border-color:var(--accent)}
+.hero-btns{flex:none;display:flex;flex-direction:column;gap:8px}
+.refresh.spin svg{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 dialog.settings{width:min(420px,calc(100vw - 24px))}
 .set-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:14px 0 8px}
 .set-label:first-child{margin-top:0}
@@ -504,9 +507,14 @@ td.cell-start .desc,td.cell-sit .desc{font-weight:400;font-size:11px}
       <p class="sub" id="sub"></p>
     </div>
     <nav class="sport" id="sport" aria-label="Sport"></nav>
+    <div class="hero-btns">
     <button type="button" class="gear" id="settingsBtn" aria-label="Settings" title="Settings">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
     </button>
+    <button type="button" class="gear refresh" id="refreshBtn" aria-label="Refresh the site" title="Refresh (loads the latest update)">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+    </button>
+    </div>
   </header>
   <dialog id="settings" class="settings" aria-labelledby="set-title">
     <div class="dlg-head"><h2 id="set-title">Settings</h2><button type="button" class="close" id="set-close" aria-label="Close">×</button></div>
@@ -988,8 +996,8 @@ function loadMarket(onDone) {
 }
 
 const MK_RANGES = [['1W', 7], ['1M', 30], ['3M', 91], ['ALL', Infinity]];
-const mk = {sub: 'team', kind: null, sel: null, range: '1M', q: '', dir: 'all', big: false};
-// The Whole market filter: worth at least this much, or moved at least this many points in the selected range.
+const mk = {sub: 'team', kind: null, sel: null, range: '1M', q: '', dir: 'all', minVal: false, minMove: false};
+// The Whole market filters: worth at least this much; moved at least this many points in the selected range.
 const MK_BIG_VALUE = 1000, MK_BIG_MOVE = 500;
 const mkRangeDays = () => (MK_RANGES.find(([k]) => k === mk.range) || [0, Infinity])[1];
 
@@ -1142,7 +1150,8 @@ async function renderMarket() {
   let listed = rows;
   if (mk.sub === 'market') {
     listed = rows.filter(r => r.c && (mk.dir === 'all' || (mk.dir === 'up' ? r.c.pct > 0 : r.c.pct < 0))
-      && (!mk.big || r.c.to.v >= MK_BIG_VALUE || Math.abs(r.c.to.v - r.c.from.v) >= MK_BIG_MOVE)).slice(0, 100);
+      && (!mk.minVal || r.c.to.v >= MK_BIG_VALUE)
+      && (!mk.minMove || Math.abs(r.c.to.v - r.c.from.v) >= MK_BIG_MOVE)).slice(0, 100);
   }
   if (!mk.sel || !mkSeries(mk.sel).length) mk.sel = (listed.find(r => r.c) || listed[0] || {}).sid || null;
 
@@ -1162,13 +1171,16 @@ async function renderMarket() {
   if (mk.sub === 'market') {
     const dirs = el('div', 'tabs');
     tabs(dirs, [['all', 'All'], ['up', 'Rising'], ['down', 'Falling']], mk.dir, v => { mk.dir = v; mk.sel = null; renderMarket(); });
-    const big = el('button', 'mk-filter' + (mk.big ? ' on' : ''), `Value ${MK_BIG_VALUE.toLocaleString()}+ or ±${MK_BIG_MOVE}`);
-    big.type = 'button';
-    big.title = `Only players worth at least ${MK_BIG_VALUE.toLocaleString()}, or whose value moved ${MK_BIG_MOVE}+ points over the selected range`;
-    big.setAttribute('aria-pressed', String(mk.big));
-    big.addEventListener('click', () => { mk.big = !mk.big; mk.sel = null; renderMarket(); });
     const ctl = el('div', 'mk-dirs');
-    ctl.appendChild(dirs); ctl.appendChild(big);
+    ctl.appendChild(dirs);
+    [['minVal', `Value ${MK_BIG_VALUE.toLocaleString()}+`, `Only players worth at least ${MK_BIG_VALUE.toLocaleString()}`],
+     ['minMove', `Moved ${MK_BIG_MOVE}+`, `Only players whose value moved ${MK_BIG_MOVE}+ points (up or down) over the selected range`]].forEach(([key, text, tip]) => {
+      const b = el('button', 'mk-filter' + (mk[key] ? ' on' : ''), text);
+      b.type = 'button'; b.title = tip;
+      b.setAttribute('aria-pressed', String(mk[key]));
+      b.addEventListener('click', () => { mk[key] = !mk[key]; mk.sel = null; renderMarket(); });
+      ctl.appendChild(b);
+    });
     head.appendChild(ctl);
   }
   side.appendChild(head);
@@ -1185,7 +1197,7 @@ async function renderMarket() {
   const label = window.MARKET.labels[mk.kind] || '';
   const firstDay = window.MARKET.history[mk.kind].dates[0];
   const spanNote = mk.sub === 'market' ? (span === Infinity ? 'over everything recorded' : `over the selected range (${mk.range})`) : 'over the past week';
-  side.appendChild(el('p', 'note', `${label}. Percentages are the change ${spanNote}${mk.sub === 'market' && mk.big ? `; filtered to players worth ${MK_BIG_VALUE.toLocaleString()}+ or who moved ${MK_BIG_MOVE}+ points` : ''}${firstDay ? `; values are recorded once a day (history from ${shortDate(firstDay)})` : ''}.`
+  side.appendChild(el('p', 'note', `${label}. Percentages are the change ${spanNote}${mk.sub === 'market' && (mk.minVal || mk.minMove) ? `; showing only players ${[mk.minVal && `worth ${MK_BIG_VALUE.toLocaleString()}+`, mk.minMove && `who moved ${MK_BIG_MOVE}+ points`].filter(Boolean).join(' and ')}` : ''}${firstDay ? `; values are recorded once a day (history from ${shortDate(firstDay)})` : ''}.`
     + (mk.sub === 'team' && rows.some(r => !r.c) ? ' Players with no market value (kickers, defenses, deep reserves) show –.' : '')));
 }
 
@@ -6045,6 +6057,16 @@ function savePrefs(p) {
   else if (view === 'games') renderGames();
 }
 
+// Refresh: fetch the page and its data files past the browser cache, then reload, so a new daily update shows.
+document.getElementById('refreshBtn').addEventListener('click', async e => {
+  const btn = e.currentTarget;
+  if (btn.classList.contains('spin')) return;
+  btn.classList.add('spin');
+  const files = [location.href.split('#')[0], ...[...document.querySelectorAll('script[src]')].map(x => x.src)];
+  if (D.market_file) files.push(new URL(D.market_file, location.href).href);
+  try { await Promise.all(files.map(u => fetch(u, {cache: 'reload'}).catch(() => null))); } catch (err) { /* reload anyway */ }
+  location.reload();
+});
 document.getElementById('settingsBtn').addEventListener('click', () => { renderSettings(); document.getElementById('settings').showModal(); });
 document.getElementById('set-close').addEventListener('click', () => document.getElementById('settings').close());
 document.getElementById('settings').addEventListener('click', e => { if (e.target.id === 'settings') e.target.close(); });
